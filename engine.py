@@ -6,12 +6,14 @@ from collections import namedtuple
 from threading import Thread
 from queue import Queue
 import time
+import math
 import json
 import subprocess
 import socket
 import eval7
 import sys
 import os
+import random
 
 sys.path.append(os.getcwd())
 from config import *
@@ -42,6 +44,7 @@ STATUS = lambda players: ''.join([PVALUE(p.name, p.bankroll) for p in players])
 # B**,**,**,**,** the board cards in common format
 # O**,** the opponent's hand in common format
 # D### the player's bankroll delta from the round
+# Y
 # Q game over
 #
 # Clauses are separated by spaces
@@ -51,7 +54,7 @@ STATUS = lambda players: ''.join([PVALUE(p.name, p.bankroll) for p in players])
 # Action history is sent once, including the player's actions
 
 
-class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks', 'hands', 'deck', 'previous_state'])):
+class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks', 'hands', 'deck', 'bounties', 'previous_state'])):
     '''
     Encodes the game tree for one round of poker.
     '''
@@ -62,13 +65,31 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
         '''
         score0 = eval7.evaluate(self.deck.peek(5) + self.hands[0])
         score1 = eval7.evaluate(self.deck.peek(5) + self.hands[1])
+        assert(self.stacks[0] == self.stacks[1])
         if score0 > score1:
             delta = STARTING_STACK - self.stacks[1]
+            if self.bounties[0] in [card[0].rank for card in [self.hands[0] + self.hands[1] + self.deck.peek(5)]]:
+                delta *= BOUNTY_RATIO
         elif score0 < score1:
             delta = self.stacks[0] - STARTING_STACK
+            if self.bounties[1] in [card[0].rank for card in [self.hands[0] + self.hands[1] + self.deck.peek(5)]]:
+                delta *= BOUNTY_RATIO
         else:  # split the pot
-            delta = (self.stacks[0] - self.stacks[1]) // 2
-        return TerminalState([delta, -delta], self)
+            bounty1 = self.bounties[0] in [card[0].rank for card in [self.hands[0] + self.hands[1] + self.deck.peek(5)]]
+            bounty2 = self.bounties[1] in [card[0].rank for card in [self.hands[0] + self.hands[1] + self.deck.peek(5)]]
+            if bounty1 and not bounty2:
+                delta = (STARTING_STACK - self.stacks[1]) * (BOUNTY_RATIO + 1) / 2
+                if abs(delta - math.floor(delta)) < 1e-6:
+                    delta = math.floor(delta)
+            elif not bounty1 and bounty2:
+                delta = (STARTING_STACK - self.stacks[0]) * (BOUNTY_RATIO + 1) / 2
+                if abs(delta - math.floor(delta)) < 1e-6:
+                    delta = math.floor(delta + 1)
+                delta = -delta
+            else:
+                delta = (self.stacks[0] - self.stacks[1]) // 2
+        
+        return TerminalState([int(delta), -int(delta)], self)
 
     def legal_actions(self):
         '''
@@ -102,7 +123,7 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
         if self.street == 5:
             return self.showdown()
         new_street = 3 if self.street == 0 else self.street + 1
-        return RoundState(1, new_street, [0, 0], self.stacks, self.hands, self.deck, self)
+        return RoundState(1, new_street, [0, 0], self.stacks, self.hands, self.deck, self.bounties, self)
 
     def proceed(self, action):
         '''
@@ -114,27 +135,27 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
             return TerminalState([delta, -delta], self)
         if isinstance(action, CallAction):
             if self.button == 0:  # sb calls bb
-                return RoundState(1, 0, [BIG_BLIND] * 2, [STARTING_STACK - BIG_BLIND] * 2, self.hands, self.deck, self)
+                return RoundState(1, 0, [BIG_BLIND] * 2, [STARTING_STACK - BIG_BLIND] * 2, self.hands, self.deck, self.bounties, self)
             # both players acted
             new_pips = list(self.pips)
             new_stacks = list(self.stacks)
             contribution = new_pips[1-active] - new_pips[active]
             new_stacks[active] -= contribution
             new_pips[active] += contribution
-            state = RoundState(self.button + 1, self.street, new_pips, new_stacks, self.hands, self.deck, self)
+            state = RoundState(self.button + 1, self.street, new_pips, new_stacks, self.hands, self.deck, self.bounties, self)
             return state.proceed_street()
         if isinstance(action, CheckAction):
             if (self.street == 0 and self.button > 0) or self.button > 1:  # both players acted
                 return self.proceed_street()
             # let opponent act
-            return RoundState(self.button + 1, self.street, self.pips, self.stacks, self.hands, self.deck, self)
+            return RoundState(self.button + 1, self.street, self.pips, self.stacks, self.hands, self.deck, self.bounties, self)
         # isinstance(action, RaiseAction)
         new_pips = list(self.pips)
         new_stacks = list(self.stacks)
         contribution = action.amount - new_pips[active]
         new_stacks[active] -= contribution
         new_pips[active] += contribution
-        return RoundState(self.button + 1, self.street, new_pips, new_stacks, self.hands, self.deck, self)
+        return RoundState(self.button + 1, self.street, new_pips, new_stacks, self.hands, self.deck, self.bounties, self)
 
 
 class Player():
@@ -365,7 +386,7 @@ class Game():
         self.player_messages[0].append('D' + str(round_state.deltas[0]))
         self.player_messages[1].append('D' + str(round_state.deltas[1]))
 
-    def run_round(self, players):
+    def run_round(self, players, bounties):
         '''
         Runs one round of poker.
         '''
@@ -374,7 +395,7 @@ class Game():
         hands = [deck.deal(2), deck.deal(2)]
         pips = [SMALL_BLIND, BIG_BLIND]
         stacks = [STARTING_STACK - SMALL_BLIND, STARTING_STACK - BIG_BLIND]
-        round_state = RoundState(0, 0, pips, stacks, hands, deck, None)
+        round_state = RoundState(0, 0, pips, stacks, hands, deck, bounties, None)
         while not isinstance(round_state, TerminalState):
             self.log_round_state(players, round_state)
             active = round_state.button % 2
@@ -402,13 +423,16 @@ class Game():
             Player(PLAYER_1_NAME, PLAYER_1_PATH),
             Player(PLAYER_2_NAME, PLAYER_2_PATH)
         ]
+        bounties = [0, 0]
         for player in players:
             player.build()
             player.run()
         for round_num in range(1, NUM_ROUNDS + 1):
+            if round_num % ROUNDS_PER_BOUNTY == 1:
+                bounties = [random.randint(0, 12), random.randint(0, 12)]
             self.log.append('')
             self.log.append('Round #' + str(round_num) + STATUS(players))
-            self.run_round(players)
+            self.run_round(players, bounties)
             players = players[::-1]
         self.log.append('')
         self.log.append('Final' + STATUS(players))
