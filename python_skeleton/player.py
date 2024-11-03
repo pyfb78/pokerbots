@@ -44,6 +44,7 @@ class Player(Bot):
         #round_num = game_state.round_num  # the round number from 1 to NUM_ROUNDS
         #my_cards = round_state.hands[active]  # your cards
         #big_blind = bool(active)  # True if you are the big blind
+        #my_bounty = round_state.bounties[active]  # your current bounty rank
         pass
 
     def handle_round_over(self, game_state, terminal_state, active):
@@ -63,7 +64,8 @@ class Player(Bot):
         #street = previous_state.street  # 0, 3, 4, or 5 representing when this round ended
         #my_cards = previous_state.hands[active]  # your cards
         #opp_cards = previous_state.hands[1-active]  # opponent's cards or [] if not revealed
-        pass
+        #opponent_bounty = teriminal_state.bounty_hits # True if opponent hit bounty
+        print(terminal_state.bounty_hits)
 
     def get_action(self, game_state, round_state, active):
         '''
@@ -87,6 +89,7 @@ class Player(Bot):
         #my_stack = round_state.stacks[active]  # the number of chips you have remaining
         #opp_stack = round_state.stacks[1-active]  # the number of chips your opponent has remaining
         #continue_cost = opp_pip - my_pip  # the number of chips needed to stay in the pot
+        #my_bounty = round_state.bounties[active]  # your current bounty rank
         #my_contribution = STARTING_STACK - my_stack  # the number of chips you have contributed to the pot
         #opp_contribution = STARTING_STACK - opp_stack  # the number of chips your opponent has contributed to the pot
         if RaiseAction in legal_actions:
