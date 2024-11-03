@@ -23,7 +23,7 @@ CallAction = namedtuple('CallAction', [])
 CheckAction = namedtuple('CheckAction', [])
 # we coalesce BetAction and RaiseAction for convenience
 RaiseAction = namedtuple('RaiseAction', ['amount'])
-TerminalState = namedtuple('TerminalState', ['deltas', 'previous_state'])
+TerminalState = namedtuple('TerminalState', ['deltas', 'bounty_hits', 'previous_state'])
 
 STREET_NAMES = ['Flop', 'Turn', 'River']
 DECODE = {'F': FoldAction, 'C': CallAction, 'K': CheckAction, 'R': RaiseAction}
@@ -44,7 +44,7 @@ STATUS = lambda players: ''.join([PVALUE(p.name, p.bankroll) for p in players])
 # B**,**,**,**,** the board cards in common format
 # O**,** the opponent's hand in common format
 # D### the player's bankroll delta from the round
-# Y
+# Y# (Y0 or Y1: Y0 means the opponent's bounty missed, Y1 means the opponent's bounty hit)
 # Q game over
 #
 # Clauses are separated by spaces
@@ -58,8 +58,56 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
     '''
     Encodes the game tree for one round of poker.
     '''
+    def get_bounty_hits(self) -> tuple[bool, bool]:
+        '''
+        Returns a tuple of booleans indicating whether each bounty was hit.
+        '''
+        return (self.bounties[0] in [card[0].rank for card in [self.hands[0] + self.hands[1] + self.deck.peek(self.street)]],
+                self.bounties[1] in [card[0].rank for card in [self.hands[0] + self.hands[1] + self.deck.peek(self.street)]])
 
-    def showdown(self):
+    def get_delta(self, winner_index: int) -> int:
+        '''Returns the delta after bounty rules are applied.
+
+        Args:
+            winner_index (int): Index of the winning player. Must be 0 (player A),
+                1 (player B), or 2 (split pot).
+
+        Returns:
+            int: The delta value after applying bounty rules.
+        '''
+        assert winner_index in [0, 1, 2]
+
+        bounty_hit_0, bounty_hit_1 = self.get_bounty_hits()
+
+        if winner_index == 2:
+            assert(self.stacks[0] == self.stacks[1]) # split pots only happen on the river + equal stacks
+            if bounty_hit_0 and not bounty_hit_1:
+                delta = (STARTING_STACK - self.stacks[1]) * (BOUNTY_RATIO + 1) / 2
+            elif not bounty_hit_0 and bounty_hit_1:
+                delta = (STARTING_STACK - self.stacks[0]) * (BOUNTY_RATIO + 1) / 2
+            else:
+                delta = (self.stacks[0] - self.stacks[1]) // 2
+                assert(delta == 0, "Split pot with no bounties hit or both bounties hit should be 0")
+
+            # if delta is not an integer, round it down or up depending on who's in position
+            if abs(delta - math.floor(delta)) > 1e-6:
+                delta = math.floor(delta) if self.button % 2 == 0 else math.ceil(delta)
+                
+            return delta
+        else:
+            if winner_index == 0:
+                delta = STARTING_STACK - self.stacks[1]
+                if bounty_hit_0:
+                    delta *= BOUNTY_RATIO
+            else:
+                delta = self.stacks[0] - STARTING_STACK
+                if bounty_hit_1:
+                    delta *= BOUNTY_RATIO
+
+            return delta
+
+
+    def showdown(self) -> TerminalState:
         '''
         Compares the players' hands and computes payoffs.
         '''
@@ -67,29 +115,14 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
         score1 = eval7.evaluate(self.deck.peek(5) + self.hands[1])
         assert(self.stacks[0] == self.stacks[1])
         if score0 > score1:
-            delta = STARTING_STACK - self.stacks[1]
-            if self.bounties[0] in [card[0].rank for card in [self.hands[0] + self.hands[1] + self.deck.peek(5)]]:
-                delta *= BOUNTY_RATIO
+            delta = self.get_delta(0)
         elif score0 < score1:
-            delta = self.stacks[0] - STARTING_STACK
-            if self.bounties[1] in [card[0].rank for card in [self.hands[0] + self.hands[1] + self.deck.peek(5)]]:
-                delta *= BOUNTY_RATIO
-        else:  # split the pot
-            bounty1 = self.bounties[0] in [card[0].rank for card in [self.hands[0] + self.hands[1] + self.deck.peek(5)]]
-            bounty2 = self.bounties[1] in [card[0].rank for card in [self.hands[0] + self.hands[1] + self.deck.peek(5)]]
-            if bounty1 and not bounty2:
-                delta = (STARTING_STACK - self.stacks[1]) * (BOUNTY_RATIO + 1) / 2
-                if abs(delta - math.floor(delta)) < 1e-6:
-                    delta = math.floor(delta)
-            elif not bounty1 and bounty2:
-                delta = (STARTING_STACK - self.stacks[0]) * (BOUNTY_RATIO + 1) / 2
-                if abs(delta - math.floor(delta)) < 1e-6:
-                    delta = math.floor(delta + 1)
-                delta = -delta
-            else:
-                delta = (self.stacks[0] - self.stacks[1]) // 2
+            delta = self.get_delta(1)
+        else:
+            # split the pot
+            delta = self.get_delta(2)
         
-        return TerminalState([int(delta), -int(delta)], self)
+        return TerminalState([int(delta), -int(delta)], self.get_bounty_hits(), self)
 
     def legal_actions(self):
         '''
@@ -131,8 +164,8 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
         '''
         active = self.button % 2
         if isinstance(action, FoldAction):
-            delta = self.stacks[0] - STARTING_STACK if active == 0 else STARTING_STACK - self.stacks[1]
-            return TerminalState([delta, -delta], self)
+            delta = self.get_delta((1 - active) % 2) # if active folds, the other player (1 - active) wins
+            return TerminalState([delta, -delta], self.get_bounty_hits(), self)
         if isinstance(action, CallAction):
             if self.button == 0:  # sb calls bb
                 return RoundState(1, 0, [BIG_BLIND] * 2, [STARTING_STACK - BIG_BLIND] * 2, self.hands, self.deck, self.bounties, self)
@@ -385,6 +418,37 @@ class Game():
         self.log.append('{} awarded {}'.format(players[1].name, round_state.deltas[1]))
         self.player_messages[0].append('D' + str(round_state.deltas[0]))
         self.player_messages[1].append('D' + str(round_state.deltas[1]))
+
+        # figure out win/chop, bounty hit, and update logs accordingly
+        if round_state.deltas[0] > 0:
+            # player 0 wins
+            if round_state.bounty_hits[0]:
+                self.log.append('{} hits their bounty'.format(players[0].name))
+                self.player_messages[1].append('Y1')
+            else:
+                self.player_messages[1].append('Y0')
+        elif round_state.deltas[1] > 0:
+            # player 1 wins
+            if round_state.bounty_hits[1]:
+                self.log.append('{} hits their bounty'.format(players[1].name))
+                self.player_messages[0].append('Y1')
+            else:
+                self.player_messages[0].append('Y0')
+        else:
+            # chop (either no bounty hit or both bounties hit)
+            if round_state.bounty_hits[0]:
+                self.log.append('{} hits their bounty'.format(players[0].name))
+                self.player_messages[1].append('Y1')
+            else:
+                self.player_messages[1].append('Y0')
+
+            if round_state.bounty_hits[1]:
+                self.log.append('{} hits their bounty'.format(players[1].name))
+                self.player_messages[0].append('Y1')
+            else:
+                self.player_messages[0].append('Y0')
+        print(f"current length of player messages[0]: {len(self.player_messages[0])}")
+        print('\n'.join(self.player_messages[0]))
 
     def run_round(self, players, bounties):
         '''
