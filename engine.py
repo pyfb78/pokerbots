@@ -1,5 +1,5 @@
 '''
-6.176 MIT POKERBOTS GAME ENGINE
+6.9630 MIT POKERBOTS GAME ENGINE
 DO NOT REMOVE, RENAME, OR EDIT THIS FILE
 '''
 from collections import namedtuple
@@ -94,9 +94,9 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
         if winner_index == 2:
             assert(self.stacks[0] == self.stacks[1]) # split pots only happen on the river + equal stacks
             if bounty_hit_0 and not bounty_hit_1:
-                delta = (STARTING_STACK - self.stacks[1]) * (BOUNTY_RATIO + 1) / 2
+                delta = (STARTING_STACK - self.stacks[1]) * (BOUNTY_RATIO - 1) / 2
             elif not bounty_hit_0 and bounty_hit_1:
-                delta = (STARTING_STACK - self.stacks[0]) * (BOUNTY_RATIO + 1) / 2
+                delta = (STARTING_STACK - self.stacks[0]) * (BOUNTY_RATIO - 1) / 2
             else:
                 delta = (self.stacks[0] - self.stacks[1]) // 2
                 assert(delta == 0)

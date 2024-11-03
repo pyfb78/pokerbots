@@ -56,7 +56,7 @@ class Runner():
                 if clause[0] == 'T':
                     game_state = GameState(game_state.bankroll, float(clause[1:]), game_state.round_num)
                 elif clause[0] == 'P':
-                    active = int(clause[1:])
+                    active = int(float(clause[1:]))
                 elif clause[0] == 'H':
                     hands = [[], []]
 
@@ -79,7 +79,7 @@ class Runner():
                 elif clause[0] == 'K':
                     round_state = round_state.proceed(CheckAction())
                 elif clause[0] == 'R':
-                    round_state = round_state.proceed(RaiseAction(int(clause[1:])))
+                    round_state = round_state.proceed(RaiseAction(int(float(clause[1:]))))
                 elif clause[0] == 'B':
                     round_state = RoundState(round_state.button, round_state.street, round_state.pips, round_state.stacks,
                                              round_state.hands, round_state.bounties, clause[1:].split(','), round_state.bounty_hits, round_state.previous_state)
@@ -94,7 +94,7 @@ class Runner():
                     round_state = TerminalState([0, 0], None, round_state)
                 elif clause[0] == 'D':
                     assert isinstance(round_state, TerminalState)
-                    delta = int(clause[1:])
+                    delta = int(float(clause[1:]))
                     deltas = [-delta, -delta]
                     deltas[active] = delta
                     round_state = TerminalState(deltas, round_state.bounty_hits, round_state.previous_state)
