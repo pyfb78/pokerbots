@@ -35,7 +35,7 @@ STATUS = lambda players: ''.join([PVALUE(p.name, p.bankroll) for p in players])
 # Socket encoding scheme:
 #
 # T#.### the player's game clock
-# P# the player's index
+# P# the- player's index
 # H**,** the player's hand in common format
 # F a fold action in the round history
 # C a call action in the round history
@@ -375,8 +375,9 @@ class Game():
             self.log.append('{} posts the blind of {}'.format(players[1].name, BIG_BLIND))
             self.log.append('{} dealt {}'.format(players[0].name, PCARDS(round_state.hands[0])))
             self.log.append('{} dealt {}'.format(players[1].name, PCARDS(round_state.hands[1])))
-            self.player_messages[0] = ['T0.', 'P0', 'H' + CCARDS(round_state.hands[0])]
-            self.player_messages[1] = ['T0.', 'P1', 'H' + CCARDS(round_state.hands[1])]
+            cardNames = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']
+            self.player_messages[0] = ['T0.', 'P0', 'H' + CCARDS(round_state.hands[0]), 'G' + cardNames[round_state.bounties[0]]]
+            self.player_messages[1] = ['T0.', 'P1', 'H' + CCARDS(round_state.hands[1]), 'G' + cardNames[round_state.bounties[1]]]
         elif round_state.street > 0 and round_state.button == 1:
             board = round_state.deck.peek(round_state.street)
             self.log.append(STREET_NAMES[round_state.street - 3] + ' ' + PCARDS(board) +
@@ -494,12 +495,15 @@ class Game():
             player.build()
             player.run()
         for round_num in range(1, NUM_ROUNDS + 1):
-            if round_num % ROUNDS_PER_BOUNTY == 1:
-                bounties = [random.randint(0, 12), random.randint(0, 12)]
             self.log.append('')
             self.log.append('Round #' + str(round_num) + STATUS(players))
+            if round_num % ROUNDS_PER_BOUNTY == 1:
+                cardNames = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']
+                bounties = [random.randint(0, 12), random.randint(0, 12)]
+                self.log.append(f"Bounties reset to {cardNames[bounties[0]]} for player {players[0].name} and {cardNames[bounties[1]]} for player {players[1].name}")
             self.run_round(players, bounties)
             players = players[::-1]
+            bounties = bounties[::-1]
         self.log.append('')
         self.log.append('Final' + STATUS(players))
         for player in players:
