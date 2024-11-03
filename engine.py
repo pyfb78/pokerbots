@@ -62,8 +62,10 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
         '''
         Returns a tuple of booleans indicating whether each bounty was hit.
         '''
-        return (self.bounties[0] in [card[0].rank for card in [self.hands[0] + self.hands[1] + self.deck.peek(self.street)]],
-                self.bounties[1] in [card[0].rank for card in [self.hands[0] + self.hands[1] + self.deck.peek(self.street)]])
+        # make an array that combines self.hands[0] and self.hands[1] and the next card in the deck
+        cards = self.hands[0] + self.hands[1] + self.deck.peek(self.street)
+        return (self.bounties[0] in [card.rank for card in cards],
+                self.bounties[1] in [card.rank for card in cards])
 
     def get_delta(self, winner_index: int) -> int:
         '''Returns the delta after bounty rules are applied.
@@ -87,7 +89,7 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
                 delta = (STARTING_STACK - self.stacks[0]) * (BOUNTY_RATIO + 1) / 2
             else:
                 delta = (self.stacks[0] - self.stacks[1]) // 2
-                assert(delta == 0, "Split pot with no bounties hit or both bounties hit should be 0")
+                assert(delta == 0)
 
             # if delta is not an integer, round it down or up depending on who's in position
             if abs(delta - math.floor(delta)) > 1e-6:
@@ -422,6 +424,7 @@ class Game():
         # figure out win/chop, bounty hit, and update logs accordingly
         if round_state.deltas[0] > 0:
             # player 0 wins
+            self.player_messages[0].append('Ywin')
             if round_state.bounty_hits[0]:
                 self.log.append('{} hits their bounty'.format(players[0].name))
                 self.player_messages[1].append('Y1')
@@ -429,6 +432,7 @@ class Game():
                 self.player_messages[1].append('Y0')
         elif round_state.deltas[1] > 0:
             # player 1 wins
+            self.player_messages[1].append('Ywin')
             if round_state.bounty_hits[1]:
                 self.log.append('{} hits their bounty'.format(players[1].name))
                 self.player_messages[0].append('Y1')
@@ -447,8 +451,6 @@ class Game():
                 self.player_messages[0].append('Y1')
             else:
                 self.player_messages[0].append('Y0')
-        print(f"current length of player messages[0]: {len(self.player_messages[0])}")
-        print('\n'.join(self.player_messages[0]))
 
     def run_round(self, players, bounties):
         '''
