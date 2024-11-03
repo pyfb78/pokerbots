@@ -60,7 +60,17 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
     '''
     def get_bounty_hits(self) -> tuple[bool, bool]:
         '''
-        Returns a tuple of booleans indicating whether each bounty was hit.
+        Determines if each player hit their bounty card during the round.
+
+        A bounty is hit if the player's bounty card rank appears in either:
+        - Player 1's hole cards
+        - Player 2's hole cards
+        - The community cards dealt so far
+
+        Returns:
+            tuple[bool, bool]: A tuple containing two booleans where:
+                - First boolean indicates if Player 1's bounty was hit
+                - Second boolean indicates if Player 2's bounty was hit
         '''
         # make an array that combines self.hands[0] and self.hands[1] and the next card in the deck
         cards = self.hands[0] + self.hands[1] + self.deck.peek(self.street)
@@ -111,7 +121,23 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
 
     def showdown(self) -> TerminalState:
         '''
-        Compares the players' hands and computes payoffs.
+        Compares the players' hands and computes the final payoffs at showdown.
+
+        Evaluates both players' hands (hole cards + community cards) and determines
+        the winner. The payoff (delta) is calculated based on:
+        - The winner of the hand
+        - Whether any bounties were hit
+        - The current pot size
+
+        Returns:
+            TerminalState: A terminal state object containing:
+                - List of deltas (positive for winner, negative for loser)
+                - Tuple of bounty hit results for both players
+                - Reference to the previous game state
+        
+        Note:
+            This method assumes both players have equal stacks when reaching showdown,
+            which is enforced by an assertion.
         '''
         score0 = eval7.evaluate(self.deck.peek(5) + self.hands[0])
         score1 = eval7.evaluate(self.deck.peek(5) + self.hands[1])
@@ -163,6 +189,25 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
     def proceed(self, action):
         '''
         Advances the game tree by one action performed by the active player.
+
+        Args:
+            action: The action being performed. Must be one of:
+                - FoldAction: Player forfeits the hand
+                - CallAction: Player matches the current bet
+                - CheckAction: Player passes when no bet to match
+                - RaiseAction: Player increases the current bet
+
+        Returns:
+            Either:
+            - RoundState: The new state after the action is performed
+            - TerminalState: If the action ends the hand (e.g., fold or final call)
+
+        Note:
+            The button value is incremented after each action to track whose turn it is.
+            For FoldAction, the inactive player is awarded the pot.
+            For CallAction on button 0, both players post blinds.
+            For CheckAction, advances to next street if both players have acted.
+            For RaiseAction, updates pips and stacks based on raise amount.
         '''
         active = self.button % 2
         if isinstance(action, FoldAction):
@@ -314,7 +359,28 @@ class Player():
     def query(self, round_state, player_message, game_log):
         '''
         Requests one action from the pokerbot over the socket connection.
-        At the end of the round, we request a CheckAction from the pokerbot.
+
+        This method handles communication with the bot, sending the current game state
+        and receiving the bot's chosen action. It enforces game clock constraints and
+        validates that the received action is legal.
+
+        Args:
+            round_state (RoundState or TerminalState): The current state of the game.
+            player_message (list): Messages to be sent to the player bot, including game state
+                information like time remaining, player position, and cards.
+            game_log (list): A list to store game events and error messages.
+
+        Returns:
+            Action: One of FoldAction, CallAction, CheckAction, or RaiseAction representing
+            the bot's chosen action. If the bot fails to provide a valid action, returns:
+                - CheckAction if it's a legal move
+                - FoldAction if check is not legal
+
+        Notes:
+            - The game clock is decremented by the time taken to receive a response
+            - Invalid or illegal actions are logged but not executed
+            - Bot disconnections or timeouts result in game clock being set to 0
+            - At the end of a round, only CheckAction is considered legal
         '''
         legal_actions = round_state.legal_actions() if isinstance(round_state, RoundState) else {CheckAction}
         if self.socketfile is not None and self.game_clock > 0.:
