@@ -2,14 +2,13 @@
 
 #include <algorithm>
 #include <numeric>
-#include <sstream>
 
 #include "skeleton/util.h"
 
 namespace pokerbots::skeleton {
 
 StatePtr RoundState::showdown() const {
-  return std::make_shared<TerminalState>(std::array<int, 2>{0, 0}, getShared());
+  return std::make_shared<TerminalState>(std::array<int, 2>{0, 0}, NULL, getShared());
 }
 
 std::unordered_set<Action::Type> RoundState::legalActions() const {
@@ -45,7 +44,7 @@ StatePtr RoundState::proceedStreet() const {
     return this->showdown();
   }
   auto newStreet = street == 0 ? 3 : street + 1;
-  return std::make_shared<RoundState>(1, newStreet, std::array<int, 2>{0, 0}, stacks, hands, deck, getShared());
+  return std::make_shared<RoundState>(1, newStreet, std::array<int, 2>{0, 0}, stacks, hands, bounties, deck, bounty_hits, getShared());
 }
 
 StatePtr RoundState::proceed(Action action) const {
@@ -53,7 +52,7 @@ StatePtr RoundState::proceed(Action action) const {
   switch (action.actionType) {
     case Action::Type::FOLD: {
       auto delta = active == 0 ? stacks[0] - STARTING_STACK : STARTING_STACK - stacks[1];
-      return std::make_shared<TerminalState>(std::array<int, 2>{delta, -1 * delta}, getShared());
+      return std::make_shared<TerminalState>(std::array<int, 2>{delta, -1 * delta}, bounty_hits, getShared());
     }
     case Action::Type::CALL: {
       if (button == 0) {  // sb calls bb
@@ -61,7 +60,7 @@ StatePtr RoundState::proceed(Action action) const {
             1, 0, std::array<int, 2>{BIG_BLIND, BIG_BLIND},
             std::array<int, 2>{STARTING_STACK - BIG_BLIND,
                                STARTING_STACK - BIG_BLIND},
-            hands, deck, getShared());
+            hands, bounties, deck, bounty_hits,  getShared());
       }
       // both players acted
       auto newPips = pips;
@@ -70,7 +69,7 @@ StatePtr RoundState::proceed(Action action) const {
       newStacks[active] = newStacks[active] - contribution;
       newPips[active] = newPips[active] + contribution;
       auto state = std::make_shared<RoundState>(button + 1, street, std::move(newPips), std::move(newStacks),
-                                                hands, deck, getShared());
+                                                hands, bounties, deck, bounty_hits, getShared());
       return state->proceedStreet();
     }
     case Action::Type::CHECK: {
@@ -78,7 +77,7 @@ StatePtr RoundState::proceed(Action action) const {
         return this->proceedStreet();
       }
       // let opponent act
-      return std::make_shared<RoundState>(button + 1, street, pips, stacks, hands, deck, getShared());
+      return std::make_shared<RoundState>(button + 1, street, pips, stacks, hands, bounties, deck, bounty_hits, getShared());
     }
     default: {  // Action::Type::RAISE
       auto newPips = pips;
@@ -86,20 +85,9 @@ StatePtr RoundState::proceed(Action action) const {
       auto contribution = action.amount - newPips[active];
       newStacks[active] = newStacks[active] - contribution;
       newPips[active] = newPips[active] + contribution;
-      return std::make_shared<RoundState>(button + 1, street, std::move(newPips), std::move(newStacks), hands, deck, getShared());
+      return std::make_shared<RoundState>(button + 1, street, std::move(newPips), std::move(newStacks), hands, bounties, deck, bounty_hits, getShared());
     }
   }
-}
-
-template <typename Iterator>
-std::string join(const Iterator begin, const Iterator end, const std::string &separator) {
-  std::ostringstream oss;
-  for (Iterator it = begin; it != end; ++it) {
-    if (it != begin)
-      oss << separator;
-    oss << *it;
-  }
-  return oss.str();
 }
 
 std::ostream &RoundState::doFormat(std::ostream &os) const {
@@ -111,12 +99,15 @@ std::ostream &RoundState::doFormat(std::ostream &os) const {
         << "pips=[" << join(pips.begin(), pips.end(), ", ") << "], "
         << "stacks=[" << join(stacks.begin(), stacks.end(), ", ") << "], "
         << "hands=[" << join(formattedHands.begin(), formattedHands.end(), ",") << "], "
-        << "deck=[" << join(deck.begin(), deck.end(), ", ") << "])";
+        << "bounties=[" << join(bounties.begin(), bounties.end(), ",") << "], "
+        << "deck=[" << join(deck.begin(), deck.end(), ", ") << "], "
+        << "bounty_hits=[" << join(bounty_hits.begin(), bounty_hits.end(), ", ") << "])";
   return os;
 }
 
 std::ostream &TerminalState::doFormat(std::ostream &os) const {
-  os << "terminal(deltas=[" << join(deltas.begin(), deltas.end(), ", ") << "])";
+  os << "terminal(deltas=[" << join(deltas.begin(), deltas.end(), ", ") << "], "
+  << "bounty_hits=[" << join(bounty_hits.begin(), bounty_hits.end(), ", ") << "])";
   return os;
 }
 

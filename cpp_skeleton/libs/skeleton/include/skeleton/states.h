@@ -34,15 +34,17 @@ struct RoundState : public State {
   std::array<int, 2> pips;
   std::array<int, 2> stacks;
   std::array<std::array<std::string, 2>, 2> hands;
+  std::array<std::string, 2> bounties;
   std::array<std::string, 5> deck;
+  std::array<bool, 2> bounty_hits;
   StatePtr previousState;
 
   RoundState(int button, int street, std::array<int, 2> pips, std::array<int, 2> stacks,
-             std::array<std::array<std::string, 2>, 2> hands, std::array<std::string, 5> deck,
-             StatePtr previousState)
+             std::array<std::array<std::string, 2>, 2> hands, std::array<std::string, 2> bounties,
+             std::array<std::string, 5> deck, std::array<bool, 2> bounty_hits, StatePtr previousState)
       : button(button), street(street), pips(std::move(pips)), stacks(std::move(stacks)),
-        hands(std::move(hands)), deck(std::move(deck)),
-        previousState(std::move(previousState)) {}
+        hands(std::move(hands)), bounties(std::move(bounties)), deck(std::move(deck)),
+        bounty_hits(std::move(bounty_hits)), previousState(std::move(previousState)) {}
 
   StatePtr showdown() const;
 
@@ -62,10 +64,12 @@ using RoundStatePtr = std::shared_ptr<const RoundState>;
 
 struct TerminalState : public State {
   std::array<int, 2> deltas;
+  std::array<bool, 2> bounty_hits;
   StatePtr previousState;
 
-  TerminalState(std::array<int, 2> deltas, StatePtr previousState)
-      : deltas(std::move(deltas)), previousState(std::move(previousState)) {}
+  TerminalState(std::array<int, 2> deltas, std::array<bool, 2> bounty_hits, StatePtr previousState)
+      : deltas(std::move(deltas)), bounty_hits(std::move(bounty_hits)),
+        previousState(std::move(previousState)) {}
 
 private:
   std::ostream &doFormat(std::ostream &os) const override;
