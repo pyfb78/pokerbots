@@ -45,6 +45,7 @@ STATUS = lambda players: ''.join([PVALUE(p.name, p.bankroll) for p in players])
 # O**,** the opponent's hand in common format
 # D### the player's bankroll delta from the round
 # Y## (both numbers 0 or 1 (or # which means masked): first is player hit bounty, second is opponent hit bounty)
+#       Note: only winning player bounty hit is revealed (or both if split pot)
 # Q game over
 #
 # Clauses are separated by spaces
