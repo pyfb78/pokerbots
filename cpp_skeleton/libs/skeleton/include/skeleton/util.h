@@ -34,7 +34,7 @@ std::array<bool, 2> get_bounty_hits(std::shared_ptr<const State> round_state)
     - The community cards dealt so far
 
     Returns:
-        std::array<bool, 2>: A tuple containing two booleans where:
+        std::array<bool, 2>: An array containing two booleans where:
             - First boolean indicates if Player 1's bounty was hit
             - Second boolean indicates if Player 2's bounty was hit
     */

@@ -55,7 +55,7 @@ public class RoundState extends State {
         - The community cards dealt so far
 
         Returns:
-            tuple[bool, bool]: A tuple containing two booleans where:
+            List<Boolean>: A list containing two booleans where:
                 - First boolean indicates if Player 1's bounty was hit
                 - Second boolean indicates if Player 2's bounty was hit
         */
