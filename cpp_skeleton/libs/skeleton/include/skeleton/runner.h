@@ -9,9 +9,6 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
-#include <fmt/format.h>
-#include <fmt/ostream.h>
-
 #include "actions.h"
 #include "constants.h"
 #include "game.h"
@@ -25,9 +22,7 @@ private:
   boost::asio::ip::tcp::iostream &stream;
 
   template <typename Action> void send(Action const& action) {
-    std::string code;
-    code = fmt::format(FMT_STRING("{}"), action);
-    stream << fmt::format(FMT_STRING("{}"), code) << '\n';
+    stream << action << '\n';
   }
 
   std::vector<std::string> receive() {
@@ -51,8 +46,8 @@ public:
     GameInfoPtr gameInfo = std::make_shared<GameInfo>(0, 0.0, 1);
     StatePtr roundState = std::make_shared<RoundState>(
         0, 0, std::array<int, 2>{0, 0}, std::array<int, 2>{0, 0},
-        std::array<std::array<std::string, 2>, 2>{}, std::array<std::string, 5>{},
-        nullptr);
+        std::array<std::array<std::string, 2>, 2>{}, std::array<std::string, 2>{},
+        std::array<std::string, 5>{}, std::array<bool, 2>{false, false}, nullptr);
     int active = 0;
     bool roundFlag = true;
     while (true) {
@@ -80,8 +75,26 @@ public:
             std::array<int, 2> stacks = {
                 STARTING_STACK - SMALL_BLIND,
                 STARTING_STACK - BIG_BLIND};
+            std::array<std::string, 2> bounties;
+            std::array<bool, 2> bounty_hits = {false, false};
             roundState = std::make_shared<RoundState>(
-                0, 0, std::move(pips), std::move(stacks), std::move(hands), std::move(deck), nullptr);
+                0, 0, std::move(pips), std::move(stacks), std::move(hands), std::move(bounties), 
+                    std::move(deck), std::move(bounty_hits), nullptr);
+            if (roundFlag) {
+              pokerbot.handleNewRound(
+                  gameInfo,
+                  std::static_pointer_cast<const RoundState>(roundState), active);
+              roundFlag = false;
+            }
+            break;
+          }
+          case 'G': {
+            std::array<std::string, 2> bounties;
+            bounties[active] = leftover;
+            auto maker = std::static_pointer_cast<const RoundState>(roundState);
+            roundState = std::make_shared<RoundState>(maker->button, maker->street, maker->pips, maker->stacks,
+                                                      maker->hands, bounties, maker->deck, maker->bounty_hits,
+                                                      maker->previousState);
             if (roundFlag) {
               pokerbot.handleNewRound(
                   gameInfo,
@@ -116,7 +129,8 @@ public:
             }
             auto maker = std::static_pointer_cast<const RoundState>(roundState);
             roundState = std::make_shared<RoundState>(maker->button, maker->street, maker->pips, maker->stacks,
-                                                      maker->hands, revisedDeck, maker->previousState);
+                                                      maker->hands, maker->bounties, revisedDeck, maker->bounty_hits,
+                                                      maker->previousState);
             break;
           }
           case 'O': {
@@ -129,8 +143,9 @@ public:
             revisedHands[1 - active] = {cards[0], cards[1]};
             // rebuild history
             roundState = std::make_shared<RoundState>(maker->button, maker->street, maker->pips, maker->stacks,
-                                                      revisedHands, maker->deck, maker->previousState);
-            roundState = std::make_shared<TerminalState>(std::array<int, 2>{0, 0}, roundState);
+                                                      revisedHands, maker->bounties, maker->deck, maker->bounty_hits,
+                                                      maker->previousState);
+            roundState = std::make_shared<TerminalState>(std::array<int, 2>{0, 0}, NULL, roundState);
             break;
           }
           case 'D': {
@@ -140,10 +155,19 @@ public:
             deltas[1 - active] = -1 * delta;
             roundState = std::make_shared<TerminalState>(
                 std::move(deltas),
+                NULL,
                 std::static_pointer_cast<const TerminalState>(roundState)
                     ->previousState);
             gameInfo = std::make_shared<GameInfo>(
                 gameInfo->bankroll + delta, gameInfo->gameClock, gameInfo->roundNum);
+            break;
+          }
+          case 'Y': {
+            std::array<bool, 2> bounty_hits = {leftover[0] == '1', leftover[1] == '1'};
+            roundState = std::make_shared<TerminalState>(
+                std::static_pointer_cast<const TerminalState>(roundState)->deltas),
+                bounty_hits,
+                std::static_pointer_cast<const TerminalState>(roundState)->previousState);
             pokerbot.handleRoundOver(
                 gameInfo,
                 std::static_pointer_cast<const TerminalState>(roundState),
@@ -179,7 +203,7 @@ void runBot(std::string &host, std::string &port, Args... args) {
   boost::asio::ip::tcp::no_delay option(true);
   stream.rdbuf()->set_option(option);
   if (!stream) {
-    fmt::print(std::cerr, FMT_STRING("Unable to connect to {}:{}"), host, port);
+    std::cerr << "Unable to connect to " << host << ":" << port << std::endl;
     return;
   }
 

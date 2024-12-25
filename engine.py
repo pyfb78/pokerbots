@@ -44,7 +44,8 @@ STATUS = lambda players: ''.join([PVALUE(p.name, p.bankroll) for p in players])
 # B**,**,**,**,** the board cards in common format
 # O**,** the opponent's hand in common format
 # D### the player's bankroll delta from the round
-# Y# (Y0 or Y1: Y0 means the opponent's bounty missed, Y1 means the opponent's bounty hit)
+# Y## (both numbers 0 or 1 (or # which means masked): first is player hit bounty, second is opponent hit bounty)
+#       Note: only winning player bounty hit is revealed (or both if split pot)
 # Q game over
 #
 # Clauses are separated by spaces
@@ -91,6 +92,7 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
 
         bounty_hit_0, bounty_hit_1 = self.get_bounty_hits()
 
+        delta = 0
         if winner_index == 2:
             assert(self.stacks[0] == self.stacks[1]) # split pots only happen on the river + equal stacks
             if bounty_hit_0 and not bounty_hit_1:
@@ -100,12 +102,6 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
             else:
                 delta = (self.stacks[0] - self.stacks[1]) // 2
                 assert(delta == 0)
-
-            # if delta is not an integer, round it down or up depending on who's in position
-            if abs(delta - math.floor(delta)) > 1e-6:
-                delta = math.floor(delta) if self.button % 2 == 0 else math.ceil(delta)
-                
-            return delta
         else:
             if winner_index == 0:
                 delta = STARTING_STACK - self.stacks[1]
@@ -115,8 +111,10 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
                 delta = self.stacks[0] - STARTING_STACK
                 if bounty_hit_1:
                     delta *= BOUNTY_RATIO
-
-            return delta
+        # if delta is not an integer, round it down or up depending on who's in position
+        if abs(delta - math.floor(delta)) > 1e-6:
+            delta = math.floor(delta) if self.button % 2 == 0 else math.ceil(delta)
+        return delta
 
 
     def showdown(self) -> TerminalState:
@@ -498,35 +496,22 @@ class Game():
         self.player_messages[1].append('D' + str(round_state.deltas[1]))
 
         # figure out win/chop, bounty hit, and update logs accordingly
-        if round_state.deltas[0] > 0:
-            # player 0 wins
-            self.player_messages[0].append('Ywin')
-            if round_state.bounty_hits[0]:
-                self.log.append('{} hits their bounty'.format(players[0].name))
-                self.player_messages[1].append('Y1')
-            else:
-                self.player_messages[1].append('Y0')
-        elif round_state.deltas[1] > 0:
-            # player 1 wins
-            self.player_messages[1].append('Ywin')
-            if round_state.bounty_hits[1]:
-                self.log.append('{} hits their bounty'.format(players[1].name))
-                self.player_messages[0].append('Y1')
-            else:
-                self.player_messages[0].append('Y0')
-        else:
-            # chop (either no bounty hit or both bounties hit)
-            if round_state.bounty_hits[0]:
-                self.log.append('{} hits their bounty'.format(players[0].name))
-                self.player_messages[1].append('Y1')
-            else:
-                self.player_messages[1].append('Y0')
+        # if round_state.bounty_hits[0]:
+        #     self.log.append('{} hits their bounty'.format(players[0].name))
+        # if round_state.bounty_hits[1]:
+        #     self.log.append('{} hits their bounty'.format(players[1].name))
 
-            if round_state.bounty_hits[1]:
-                self.log.append('{} hits their bounty'.format(players[1].name))
-                self.player_messages[0].append('Y1')
-            else:
-                self.player_messages[0].append('Y0')
+        hit_chars = ['0', '0']
+        if round_state.bounty_hits[0]:
+            hit_chars[0] = '1'
+        if round_state.bounty_hits[1]:
+            hit_chars[1] = '1'
+        if round_state.deltas[0] > 0: # mask out the losing player's hit
+            hit_chars[1] = '#'
+        elif round_state.deltas[1] > 0:
+            hit_chars[0] = '#'
+        self.player_messages[0].append('Y' + hit_chars[0] + hit_chars[1])
+        self.player_messages[1].append('Y' + hit_chars[1] + hit_chars[0])
 
     def run_round(self, players, bounties):
         '''
