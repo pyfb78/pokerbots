@@ -44,7 +44,7 @@ StatePtr RoundState::proceedStreet() const {
     return this->showdown();
   }
   auto newStreet = street == 0 ? 3 : street + 1;
-  return std::make_shared<RoundState>(1, newStreet, std::array<int, 2>{0, 0}, stacks, hands, bounties, deck, bounty_hits, getShared());
+  return std::make_shared<RoundState>(1, newStreet, std::array<int, 2>{0, 0}, stacks, hands, bounties, deck, getShared());
 }
 
 StatePtr RoundState::proceed(Action action) const {
@@ -52,7 +52,7 @@ StatePtr RoundState::proceed(Action action) const {
   switch (action.actionType) {
     case Action::Type::FOLD: {
       auto delta = active == 0 ? stacks[0] - STARTING_STACK : STARTING_STACK - stacks[1];
-      return std::make_shared<TerminalState>(std::array<int, 2>{delta, -1 * delta}, bounty_hits, getShared());
+      return std::make_shared<TerminalState>(std::array<int, 2>{delta, -1 * delta}, get_bounty_hits(getShared()), getShared());
     }
     case Action::Type::CALL: {
       if (button == 0) {  // sb calls bb
@@ -60,7 +60,7 @@ StatePtr RoundState::proceed(Action action) const {
             1, 0, std::array<int, 2>{BIG_BLIND, BIG_BLIND},
             std::array<int, 2>{STARTING_STACK - BIG_BLIND,
                                STARTING_STACK - BIG_BLIND},
-            hands, bounties, deck, bounty_hits,  getShared());
+            hands, bounties, deck, getShared());
       }
       // both players acted
       auto newPips = pips;
@@ -69,7 +69,7 @@ StatePtr RoundState::proceed(Action action) const {
       newStacks[active] = newStacks[active] - contribution;
       newPips[active] = newPips[active] + contribution;
       auto state = std::make_shared<RoundState>(button + 1, street, std::move(newPips), std::move(newStacks),
-                                                hands, bounties, deck, bounty_hits, getShared());
+                                                hands, bounties, deck, getShared());
       return state->proceedStreet();
     }
     case Action::Type::CHECK: {
@@ -77,7 +77,7 @@ StatePtr RoundState::proceed(Action action) const {
         return this->proceedStreet();
       }
       // let opponent act
-      return std::make_shared<RoundState>(button + 1, street, pips, stacks, hands, bounties, deck, bounty_hits, getShared());
+      return std::make_shared<RoundState>(button + 1, street, pips, stacks, hands, bounties, deck, getShared());
     }
     default: {  // Action::Type::RAISE
       auto newPips = pips;
@@ -85,7 +85,7 @@ StatePtr RoundState::proceed(Action action) const {
       auto contribution = action.amount - newPips[active];
       newStacks[active] = newStacks[active] - contribution;
       newPips[active] = newPips[active] + contribution;
-      return std::make_shared<RoundState>(button + 1, street, std::move(newPips), std::move(newStacks), hands, bounties, deck, bounty_hits, getShared());
+      return std::make_shared<RoundState>(button + 1, street, std::move(newPips), std::move(newStacks), hands, bounties, deck, getShared());
     }
   }
 }
@@ -100,8 +100,7 @@ std::ostream &RoundState::doFormat(std::ostream &os) const {
         << "stacks=[" << join(stacks.begin(), stacks.end(), ", ") << "], "
         << "hands=[" << join(formattedHands.begin(), formattedHands.end(), ",") << "], "
         << "bounties=[" << join(bounties.begin(), bounties.end(), ",") << "], "
-        << "deck=[" << join(deck.begin(), deck.end(), ", ") << "], "
-        << "bounty_hits=[" << join(bounty_hits.begin(), bounty_hits.end(), ", ") << "])";
+        << "deck=[" << join(deck.begin(), deck.end(), ", ") << "])";
   return os;
 }
 
