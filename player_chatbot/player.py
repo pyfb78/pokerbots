@@ -126,10 +126,10 @@ class Player(Bot):
             self.new_message += " Your opponent revealed " + ', '.join(opp_cards) + "."
         
         print("This round, your bankroll changed by", str(my_delta)+'!')
-        if terminal_state.bounty_hits:
+        if terminal_state.bounty_hits[1-active]:
             print("Unfortunately, your opponent's bounty hit this round.")
 
-        self.new_message += " This round, your bankroll changed by " + str(my_delta) + ("Unfortunately, your opponent's bounty hit this round." if terminal_state.bounty_hits else '') + "! Onto the next round - Say yes to continue."
+        self.new_message += " This round, your bankroll changed by " + str(my_delta) + ("Unfortunately, your opponent's bounty hit this round." if terminal_state.bounty_hits[1-active] else '') + "! Onto the next round - Say yes to continue."
         print()
         
         if self.is_gpt:
