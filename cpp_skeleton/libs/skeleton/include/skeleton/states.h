@@ -56,6 +56,8 @@ struct RoundState : public State {
   StatePtr proceed(Action action) const;
 
 private:
+  std::array<bool, 2> get_bounty_hits() const;
+  
   std::ostream &doFormat(std::ostream &os) const override;
 };
 
