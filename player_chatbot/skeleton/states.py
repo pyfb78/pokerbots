@@ -31,11 +31,10 @@ class RoundState(namedtuple('_RoundState', ['button', 'street', 'pips', 'stacks'
                 - First boolean indicates if Player 1's bounty was hit
                 - Second boolean indicates if Player 2's bounty was hit
         '''
-        ranks = {'2':0, '3':1, '4':2, '5':3, '6':4, '7':5, '8':6, '9':7, 'T':8, 'J':9, 'Q':10, 'K':11, 'A':12}
-        cards0 = self.hands[0] + self.deck
-        cards1 = self.hands[1] + self.deck
-        return (self.bounties[0] in [ranks[card[0]] for card in cards0],
-                self.bounties[1] in [ranks[card[0]] for card in cards1])
+        cards0 = self.hands[0] + ([] if self.street == 0 else self.deck.peek(self.street))
+        cards1 = self.hands[1] + ([] if self.street == 0 else self.deck.peek(self.street))
+        return (self.bounties[0] in [card[0] for card in cards0],
+                self.bounties[1] in [card[0] for card in cards1])
 
     def showdown(self):
         '''

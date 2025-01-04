@@ -96,16 +96,13 @@ public class Runner {
                         List<Integer> pips = Arrays.asList(State.SMALL_BLIND, State.BIG_BLIND);
                         List<Integer> stacks = Arrays.asList(State.STARTING_STACK - State.SMALL_BLIND,
                                                              State.STARTING_STACK - State.BIG_BLIND);
-                        List<Integer> bounties = Arrays.asList(-1, -1);
+                        List<Character> bounties = Arrays.asList(' ', ' ');
                         roundState = new RoundState(0, 0, pips, stacks, hands, bounties, deck, null);
                         break;
                     }
                     case 'G': {
-                        List<Integer> bounties = Arrays.asList(-1, -1);
-                        Map<String, Integer> ranks = Map.ofEntries(
-                            entry("2", 0), entry("3", 1), entry("4", 2), entry("5", 3), entry("6", 4), entry("7", 5), entry("8", 6), entry("9", 7), entry("T", 8), entry("J", 9), entry("Q", 10), entry("K", 11), entry("A", 12)
-                        );
-                        bounties.set(active, ranks.get(leftover));
+                        List<Character> bounties = Arrays.asList(' ', ' ');
+                        bounties.set(active, leftover.charAt(0));
                         RoundState maker = (RoundState)roundState;
                         roundState = new RoundState(maker.button, maker.street, maker.pips, maker.stacks,
                                                     maker.hands, bounties, maker.deck, maker.previousState);

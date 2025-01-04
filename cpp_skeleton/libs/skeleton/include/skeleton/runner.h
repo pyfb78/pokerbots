@@ -76,18 +76,15 @@ public:
             std::array<int, 2> stacks = {
                 STARTING_STACK - SMALL_BLIND,
                 STARTING_STACK - BIG_BLIND};
-            std::array<int, 2> bounties;
+            std::array<char, 2> bounties;
             roundState = std::make_shared<RoundState>(
                 0, 0, std::move(pips), std::move(stacks), std::move(hands), std::move(bounties), 
                     std::move(deck), nullptr);
             break;
           }
           case 'G': {
-            std::array<int, 2> bounties = {-1, -1};
-            std::map<std::string, int> ranks = {
-                {"2", 0}, {"3", 1}, {"4", 2}, {"5", 3}, {"6", 4}, {"7", 5}, {"8", 6}, {"9", 7}, {"T", 8}, {"J", 9}, {"Q", 10}, {"K", 11}, {"A", 12}
-            };
-            bounties[active] = ranks[leftover];
+            std::array<char, 2> bounties = {' ', ' '};
+            bounties[active] = leftover[0];
             auto maker = std::static_pointer_cast<const RoundState>(roundState);
             roundState = std::make_shared<RoundState>(maker->button, maker->street, maker->pips, maker->stacks,
                                                       maker->hands, bounties, maker->deck, maker->previousState);

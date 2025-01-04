@@ -20,12 +20,12 @@ public class RoundState extends State {
     public final List<Integer> pips;
     public final List<Integer> stacks;
     public final List<List<String>> hands;
-    public final List<Integer> bounties;
+    public final List<Character> bounties;
     public final List<String> deck;
     public final State previousState;
 
     public RoundState(int button, int street, List<Integer> pips, List<Integer> stacks,
-                      List<List<String>> hands, List<Integer> bounties, List<String> deck,
+                      List<List<String>> hands, List<Character> bounties, List<String> deck,
                       State previousState) {
         this.button = button;
         this.street = street;
@@ -59,18 +59,15 @@ public class RoundState extends State {
                 - First boolean indicates if Player 1's bounty was hit
                 - Second boolean indicates if Player 2's bounty was hit
         */
-        Map<String, Integer> ranks = Map.ofEntries(
-            entry("2", 0), entry("3", 1), entry("4", 2), entry("5", 3), entry("6", 4), entry("7", 5), entry("8", 6), entry("9", 7), entry("T", 8), entry("J", 9), entry("Q", 10), entry("K", 11), entry("A", 12)
-        );
-        List<Integer> cards0 = new ArrayList<Integer>(), cards1 = new ArrayList<Integer>();
+        List<Character> cards0 = new ArrayList<Character>(), cards1 = new ArrayList<Character>();
         for(int i = 0; i < 2; i ++)
-            cards0.add(ranks.get(this.hands.get(0).get(i)));
+            cards0.add(this.hands.get(0).get(i).charAt(0));
         for(int i = 0; i < 2; i ++)
-            cards1.add(ranks.get(this.hands.get(1).get(i)));
+            cards1.add(this.hands.get(1).get(i).charAt(0));
         for(int i = 0; i < this.street; i ++)
         {
-            cards0.add(ranks.get(this.deck.get(i)));
-            cards1.add(ranks.get(this.deck.get(i)));
+            cards0.add(this.deck.get(i).charAt(0));
+            cards1.add(this.deck.get(i).charAt(0));
         }
         List<Boolean> bounty_hits = Arrays.asList(cards0.contains(this.bounties.get(0)), cards1.contains(this.bounties.get(1)));
         return bounty_hits;
