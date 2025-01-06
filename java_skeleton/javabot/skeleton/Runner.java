@@ -163,6 +163,12 @@ public class Runner {
                     }
                     case 'Y': {
                         List<Boolean> bounty_hits = Arrays.asList(leftover.charAt(0) == '1', leftover.charAt(1) == '1');
+                        if(active == 1)
+                        {
+                            boolean temp = bounty_hits.get(0);
+                            bounty_hits.set(0, bounty_hits.get(1));
+                            bounty_hits.set(1, temp);
+                        }
                         roundState = new TerminalState(((TerminalState)roundState).deltas, bounty_hits, ((TerminalState)roundState).previousState);
                         this.pokerbot.handleRoundOver(gameState, (TerminalState)roundState, active);
                         gameState = new GameState(gameState.bankroll, gameState.gameClock, gameState.roundNum + 1);

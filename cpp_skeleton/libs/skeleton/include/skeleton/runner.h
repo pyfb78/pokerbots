@@ -155,6 +155,7 @@ public:
           }
           case 'Y': {
             std::array<bool, 2> bounty_hits = {leftover[0] == '1', leftover[1] == '1'};
+            if(active == 1) std::swap(bounty_hits[0], bounty_hits[1]);
             roundState = std::make_shared<TerminalState>(
                 std::static_pointer_cast<const TerminalState>(roundState)->deltas),
                 bounty_hits,
