@@ -102,6 +102,8 @@ class Runner():
                 elif clause[0] == 'Y':
                     assert isinstance(round_state, TerminalState)
                     hero_hit_bounty, opponent_hit_bounty = (clause[1] == '1'), (clause[2] == '1')
+                    if active == 1:
+                        hero_hit_bounty, opponent_hit_bounty = opponent_hit_bounty, hero_hit_bounty
                     round_state = TerminalState(round_state.deltas, [hero_hit_bounty, opponent_hit_bounty], round_state.previous_state)
                     self.pokerbot.handle_round_over(game_state, round_state, active)
                     game_state = GameState(game_state.bankroll, game_state.game_clock, game_state.round_num + 1)
