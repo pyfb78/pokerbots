@@ -54,6 +54,8 @@ public class Player implements Bot {
         //int street = previousState.street;  // 0, 3, 4, or 5 representing when this round ended
         //List<String> myCards = previousState.hands.get(active);  // your cards
         //List<String> oppCards = previousState.hands.get(1-active);  // opponent's cards or "" if not revealed
+        //Boolean myBountyHit = terminalState.bounty_hits.get(active);  // if your bounty hit this round
+        //Boolean oppBountyHit = terminalState.bounty_hits.get(1-active);  // if opponent's bounty hit this round
     }
 
     /**
@@ -74,6 +76,7 @@ public class Player implements Bot {
         //int oppPip = roundState.pips.get(1-active);  // the number of chips your opponent has contributed to the pot this round of betting
         //int myStack = roundState.stacks.get(active);  // the number of chips you have remaining
         //int oppStack = roundState.stacks.get(1-active);  // the number of chips your opponent has remaining
+        //Character myBounty = roundState.bounties.get(active);  // your current bounty rank
         //int continueCost = oppPip - myPip;  // the number of chips needed to stay in the pot
         //int myContribution = State.STARTING_STACK - myStack;  // the number of chips you have contributed to the pot
         //int oppContribution = State.STARTING_STACK - oppStack;  // the number of chips your opponent has contributed to the pot
