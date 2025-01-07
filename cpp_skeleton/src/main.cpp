@@ -68,17 +68,17 @@ struct Bot {
                    int active) {
     auto legalActions =
         roundState->legalActions(); // the actions you are allowed to take
-    // int street = roundState->street;  // 0, 3, 4, or 5 representing pre-flop, flop, turn, or river respectively
-    // auto myCards = roundState->hands[active];  // your cards 
-    // auto boardCards = roundState->deck;  // the board cards 
+    int street = roundState->street;  // 0, 3, 4, or 5 representing pre-flop, flop, turn, or river respectively
+    auto myCards = roundState->hands[active];  // your cards 
+    auto boardCards = roundState->deck;  // the board cards 
     int myPip = roundState->pips[active];  // the number of chips you have contributed to the pot this round of betting 
-    // int oppPip = roundState->pips[1-active]; // the number of chips your opponent has contributed to the pot this round of betting 
-    // int myStack = roundState->stacks[active];  // the number of chips you have remaining 
-    // int oppStack = roundState->stacks[1-active];  // the number of chips your opponent has remaining 
-    // int continueCost = oppPip - myPip;  // the number of chips needed to stay in the pot
-    // int myContribution = STARTING_STACK - myStack;  // the number of chips you have contributed to the pot 
-    // int oppContribution = STARTING_STACK - oppStack;  // the number of chips your opponent has contributed to the pot
-    // char myBounty = roundState->bounties[active];  // your current bounty rank 
+    int oppPip = roundState->pips[1-active]; // the number of chips your opponent has contributed to the pot this round of betting 
+    int myStack = roundState->stacks[active];  // the number of chips you have remaining 
+    int oppStack = roundState->stacks[1-active];  // the number of chips your opponent has remaining 
+    int continueCost = oppPip - myPip;  // the number of chips needed to stay in the pot
+    int myContribution = STARTING_STACK - myStack;  // the number of chips you have contributed to the pot 
+    int oppContribution = STARTING_STACK - oppStack;  // the number of chips your opponent has contributed to the pot
+    char myBounty = roundState->bounties[active];  // your current bounty rank 
 
     int minCost = 0, maxCost = 0;
     std::array<int, 2> raiseBounds = {0, 0};
