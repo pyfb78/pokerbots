@@ -60,10 +60,22 @@ public class RoundState extends State {
                 - Second boolean indicates if Player 2's bounty was hit
         */
         List<Character> cards0 = new ArrayList<Character>(), cards1 = new ArrayList<Character>();
-        for(int i = 0; i < 2; i ++)
-            cards0.add(this.hands.get(0).get(i).charAt(0));
-        for(int i = 0; i < 2; i ++)
-            cards1.add(this.hands.get(1).get(i).charAt(0));
+        System.out.println(this.hands.get(0).get(0));
+        System.out.println(this.hands.get(0).get(1));
+        System.out.println(this.hands.get(1).get(0));
+        System.out.println(this.hands.get(1).get(1));
+        try
+        {
+            for(int i = 0; i < 2; i ++)
+                cards0.add(this.hands.get(0).get(i).charAt(0));
+        }
+        catch(Exception e) {}
+        try
+        {
+            for(int i = 0; i < 2; i ++)
+                cards1.add(this.hands.get(1).get(i).charAt(0));
+        }
+        catch(Exception e) {}
         for(int i = 0; i < this.street; i ++)
         {
             cards0.add(this.deck.get(i).charAt(0));

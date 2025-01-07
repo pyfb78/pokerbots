@@ -47,8 +47,8 @@ public:
     GameInfoPtr gameInfo = std::make_shared<GameInfo>(0, 0.0, 1);
     StatePtr roundState = std::make_shared<RoundState>(
         0, 0, std::array<int, 2>{0, 0}, std::array<int, 2>{0, 0},
-        std::array<std::array<std::string, 2>, 2>{}, std::array<std::string, 2>{},
-        std::array<std::string, 5>{}, std::array<bool, 2>{false, false}, nullptr);
+        std::array<std::array<std::string, 2>, 2>{}, std::array<char, 2>{},
+        std::array<std::string, 5>{}, nullptr);
     int active = 0;
     bool roundFlag = true;
     while (true) {
@@ -136,7 +136,7 @@ public:
             // rebuild history
             roundState = std::make_shared<RoundState>(maker->button, maker->street, maker->pips, maker->stacks,
                                                       revisedHands, maker->bounties, maker->deck, maker->previousState);
-            roundState = std::make_shared<TerminalState>(std::array<int, 2>{0, 0}, NULL, roundState);
+            roundState = std::make_shared<TerminalState>(std::array<int, 2>{0, 0}, std::array<bool, 2>{false, false}, roundState);
             break;
           }
           case 'D': {
@@ -146,7 +146,7 @@ public:
             deltas[1 - active] = -1 * delta;
             roundState = std::make_shared<TerminalState>(
                 std::move(deltas),
-                NULL,
+                std::array<bool, 2>{false, false},
                 std::static_pointer_cast<const TerminalState>(roundState)
                     ->previousState);
             gameInfo = std::make_shared<GameInfo>(
@@ -157,7 +157,7 @@ public:
             std::array<bool, 2> bounty_hits = {leftover[0] == '1', leftover[1] == '1'};
             if(active == 1) std::swap(bounty_hits[0], bounty_hits[1]);
             roundState = std::make_shared<TerminalState>(
-                std::static_pointer_cast<const TerminalState>(roundState)->deltas),
+                std::static_pointer_cast<const TerminalState>(roundState)->deltas,
                 bounty_hits,
                 std::static_pointer_cast<const TerminalState>(roundState)->previousState);
             pokerbot.handleRoundOver(

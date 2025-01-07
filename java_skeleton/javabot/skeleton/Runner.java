@@ -66,7 +66,7 @@ public class Runner {
         GameState gameState = new GameState(0, (float)0., 1);
         State roundState = new RoundState(0, 0, Arrays.asList(0, 0), Arrays.asList(0, 0),
                                           Arrays.asList(Arrays.asList(""), Arrays.asList("")),
-                                          Arrays.asList(0, 0), Arrays.asList(""), null);
+                                          Arrays.asList(' ', ' '), Arrays.asList(""), null);
         int active = 0;
         boolean roundFlag = true;
         while (true) {

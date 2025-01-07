@@ -8,7 +8,7 @@
 namespace pokerbots::skeleton {
 
 StatePtr RoundState::showdown() const {
-  return std::make_shared<TerminalState>(std::array<int, 2>{0, 0}, NULL, getShared());
+  return std::make_shared<TerminalState>(std::array<int, 2>{0, 0}, std::array<bool, 2>{false, false}, getShared());
 }
 
 std::unordered_set<Action::Type> RoundState::legalActions() const {
@@ -105,10 +105,18 @@ std::array<bool, 2> RoundState::get_bounty_hits() const
             - Second boolean indicates if Player 2's bounty was hit
     */
     std::vector<char> cards0, cards1;
-    for(int i = 0; i < 2; i ++)
-        cards0.push_back(this->hands[0][i][0]);
-    for(int i = 0; i < 2; i ++)
-        cards1.push_back(this->hands[1][i][0]);
+    try
+    {
+        for(int i = 0; i < 2; i ++)
+            cards0.push_back(this->hands[0][i][0]);
+    }
+    catch(const std::exception &e) {}
+    try
+    {
+        for(int i = 0; i < 2; i ++)
+            cards1.push_back(this->hands[1][i][0]);
+    }
+    catch(const std::exception &e) {}
     for(int i = 0; i < this->street; i ++)
     {
         cards0.push_back(this->deck[i][0]);
