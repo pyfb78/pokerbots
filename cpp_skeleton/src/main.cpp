@@ -2,6 +2,9 @@
 #include <skeleton/constants.h>
 #include <skeleton/runner.h>
 #include <skeleton/states.h>
+#include <iostream>
+#include <array>
+#include <time.h>
 
 using namespace pokerbots::skeleton;
 
@@ -32,12 +35,24 @@ struct Bot {
   void handleRoundOver(GameInfoPtr gameState, TerminalStatePtr terminalState,
                        int active) {
     // int myDelta = terminalState->deltas[active];  // your bankroll change from this round 
-    // auto previousState = std::static_pointer_cast<const RoundState>(terminalState->previousState);  // RoundState before payoffs
+    auto previousState = std::static_pointer_cast<const RoundState>(terminalState->previousState);  // RoundState before payoffs
     // int street = previousState->street;  // 0, 3, 4, or 5 representing when this round ended 
     // auto myCards = previousState->hands[active];  // your cards 
     // auto oppCards = previousState->hands[1-active];  // opponent's cards or "" if not revealed 
-    // bool myBountyHit = terminalState->bounty_hits[active];  // true if your bounty hit this round
-    // bool oppBountyHit = terminalState->bounty_hits[1-active];  // true if your opponent's bounty hit this round
+    
+    bool myBountyHit = terminalState->bounty_hits[active];  // true if your bounty hit this round
+    bool oppBountyHit = terminalState->bounty_hits[1-active];  // true if your opponent's bounty hit this round
+
+    char bounty_rank = previousState->bounties[active];  // your bounty rank
+
+    // The following is a demonstration of accessing illegal information (will not work)
+    char opponent_bounty_rank = previousState->bounties[1-active];  // attempting to grab opponent's bounty rank
+    if (myBountyHit) {
+      std::cout << "I hit my bounty of " << bounty_rank << "!" << std::endl;
+    }
+    if (oppBountyHit) {
+      std::cout << "Opponent hit their bounty of " << opponent_bounty_rank << "!" << std::endl;
+    }
   }
 
   /*
@@ -56,7 +71,7 @@ struct Bot {
     // int street = roundState->street;  // 0, 3, 4, or 5 representing pre-flop, flop, turn, or river respectively
     // auto myCards = roundState->hands[active];  // your cards 
     // auto boardCards = roundState->deck;  // the board cards 
-    // int myPip = roundState->pips[active];  // the number of chips you have contributed to the pot this round of betting 
+    int myPip = roundState->pips[active];  // the number of chips you have contributed to the pot this round of betting 
     // int oppPip = roundState->pips[1-active]; // the number of chips your opponent has contributed to the pot this round of betting 
     // int myStack = roundState->stacks[active];  // the number of chips you have remaining 
     // int oppStack = roundState->stacks[1-active];  // the number of chips your opponent has remaining 
@@ -64,14 +79,25 @@ struct Bot {
     // int myContribution = STARTING_STACK - myStack;  // the number of chips you have contributed to the pot 
     // int oppContribution = STARTING_STACK - oppStack;  // the number of chips your opponent has contributed to the pot
     // char myBounty = roundState->bounties[active];  // your current bounty rank 
-    // if (legalActions.find(Action::Type::RAISE) != legalActions.end()) {
-    //   auto raiseBounds = roundState->raiseBounds();  // the smallest and largest numbers of chips for a legal bet/raise 
-    //   int minCost = raiseBounds[0] - myPip;  // the cost of a minimum bet/raise 
-    //   int maxCost = raiseBounds[1] - myPip;  // the cost of a maximum bet/raise
-    // }
-    if (legalActions.find(Action::Type::CHECK) !=
-        legalActions.end()) { // check-call
+
+    int minCost = 0, maxCost = 0;
+    std::array<int, 2> raiseBounds = {0, 0};
+    if (legalActions.find(Action::Type::RAISE) != legalActions.end()) {
+      raiseBounds = roundState->raiseBounds();  // the smallest and largest numbers of chips for a legal bet/raise 
+      minCost = raiseBounds[0] - myPip;  // the cost of a minimum bet/raise 
+      maxCost = raiseBounds[1] - myPip;  // the cost of a maximum bet/raise
+    }
+
+    if (legalActions.find(Action::Type::RAISE) != legalActions.end()) {
+      if (rand() % 2 == 0) {
+        return {Action::Type::RAISE, raiseBounds[0]};
+      }
+    }
+    if (legalActions.find(Action::Type::CHECK) != legalActions.end()) {
       return {Action::Type::CHECK};
+    }
+    if (rand() % 4 == 0) {
+      return {Action::Type::FOLD};
     }
     return {Action::Type::CALL};
   }
@@ -81,6 +107,7 @@ struct Bot {
   Main program for running a C++ pokerbot.
 */
 int main(int argc, char *argv[]) {
+  srand(time(NULL));
   auto [host, port] = parseArgs(argc, argv);
   runBot<Bot>(host, port);
   return 0;
