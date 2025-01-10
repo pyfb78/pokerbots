@@ -116,7 +116,7 @@ class Player(Bot):
         #     return FoldAction()
         # return CallAction()
         
-        if(len(board_cards) == 0)): #the computation takes too long, so check as it is unlikely a bot plays aggresively in the beginning
+        if(len(board_cards) == 0): #the computation takes too long, so check as it is unlikely a bot plays aggresively in the beginning
             return CheckAction()
 
         chance = holdem_calc.calculate(list(board_cards), False, 10000, None, [my_cards[0], my_cards[1], "?", "?"], False) #check my odds of winning
