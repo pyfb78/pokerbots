@@ -7,8 +7,7 @@ from skeleton.states import NUM_ROUNDS, STARTING_STACK, BIG_BLIND, SMALL_BLIND
 from skeleton.bot import Bot
 from skeleton.runner import parse_args, run_bot
 
-import random
-
+import holdem_calc
 
 class Player(Bot):
     '''
@@ -39,13 +38,13 @@ class Player(Bot):
         Returns:
         Nothing.
         '''
-        #my_bankroll = game_state.bankroll  # the total number of chips you've gained or lost from the beginning of the game to the start of this round
-        #game_clock = game_state.game_clock  # the total number of seconds your bot has left to play this game
-        #round_num = game_state.round_num  # the round number from 1 to NUM_ROUNDS
-        #my_cards = round_state.hands[active]  # your cards
-        #big_blind = bool(active)  # True if you are the big blind
-        #my_bounty = round_state.bounties[active]  # your current bounty rank
-        pass
+        my_bankroll = game_state.bankroll  # the total number of chips you've gained or lost from the beginning of the game to the start of this round
+        game_clock = game_state.game_clock  # the total number of seconds your bot has left to play this game
+        round_num = game_state.round_num  # the round number from 1 to NUM_ROUNDS
+        my_cards = round_state.hands[active]  # your cards
+        big_blind = bool(active)  # True if you are the big blind
+        my_bounty = round_state.bounties[active]  # your current bounty rank
+        # pass
 
     def handle_round_over(self, game_state, terminal_state, active):
         '''
@@ -104,19 +103,29 @@ class Player(Bot):
         opp_contribution = STARTING_STACK - opp_stack  # the number of chips your opponent has contributed to the pot
 
         
-        if RaiseAction in legal_actions:
-           min_raise, max_raise = round_state.raise_bounds()  # the smallest and largest numbers of chips for a legal bet/raise
-           min_cost = min_raise - my_pip  # the cost of a minimum bet/raise
-           max_cost = max_raise - my_pip  # the cost of a maximum bet/raise
-        if RaiseAction in legal_actions:
-            if random.random() < 0.5:
-                return RaiseAction(min_raise)
-        if CheckAction in legal_actions:  # check-call
+        # if RaiseAction in legal_actions:
+        #    min_raise, max_raise = round_state.raise_bounds()  # the smallest and largest numbers of chips for a legal bet/raise
+        #    min_cost = min_raise - my_pip  # the cost of a minimum bet/raise
+        #    max_cost = max_raise - my_pip  # the cost of a maximum bet/raise
+        # if RaiseAction in legal_actions:
+        #     if random.random() < 0.5:
+        #         return RaiseAction(min_raise)
+        # if CheckAction in legal_actions:  # check-call
+        #     return CheckAction()
+        # if random.random() < 0.25:
+        #     return FoldAction()
+        # return CallAction()
+        
+        if(len(board_cards) = 0): #the computation takes too long, so check as it is unlikely a bot plays aggresively in the beginning
             return CheckAction()
-        if random.random() < 0.25:
-            return FoldAction()
-        return CallAction()
 
+        chance = holdem_calc.calculate(list(board_cards), False, 10000, None, [my_cards[0], my_cards[1], "?", "?"], False) #check my odds of winning
+
+        if(chance[1] > chance[2] - 0.1): # see if my odds are better than my opponents to a reasonable degree (it doesn't matter if my odds are a little worse)
+            return CheckAction()
+        
+        else:
+            return FoldAction()
 
 if __name__ == '__main__':
     run_bot(Player(), parse_args())
