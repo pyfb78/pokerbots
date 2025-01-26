@@ -32,6 +32,7 @@ class CFRBot(Bot):
         self.regret_sum = {}
         self.strategy_sum = {}
         self.strategy_iteration = 0  # Track iterations for strategy adjustments
+        self.bounty = None  # Initialize bounty rank
         self.load_cfr_data()
 
     def load_cfr_data(self):
@@ -72,6 +73,20 @@ class CFRBot(Bot):
         debug_log("No board cards, equity set to 0.5 (default pre-flop).")
         return 0.5
 
+    def calculate_bounty_multiplier(self, my_cards, board_cards):
+        """Check if the bounty rank is in the hole cards or on the board."""
+        combined = my_cards + board_cards
+        bounty_hit = any(card[0] == self.bounty for card in combined)
+        return 1.5 if bounty_hit else 1.0
+
+    def dynamic_raise_amount(self, equity, pot_size, min_raise, max_raise):
+        """Calculate a dynamic raise amount based on equity and pot size."""
+        aggression_factor = min(1.5, equity * 2)  # Scale raise aggression based on equity
+        raise_amount = pot_size * aggression_factor
+        raise_amount = max(min_raise, min(raise_amount, max_raise))
+        debug_log(f"Dynamic raise amount calculated: {raise_amount}")
+        return raise_amount
+
     def get_strategy(self, state_key, legal_actions):
         regrets = self.regret_sum.get(state_key, {a: 0 for a in legal_actions})
         normalizing_sum = sum(max(r, 0) for r in regrets.values())
@@ -105,17 +120,21 @@ class CFRBot(Bot):
         self.track_opponent_behavior(round_state, active)
 
         equity = self.calculate_equity(board_cards, my_cards)
+        bounty_multiplier = self.calculate_bounty_multiplier(my_cards, board_cards)
+        effective_equity = equity * bounty_multiplier
+
+        debug_log(f"Effective equity (considering bounty): {effective_equity:.4f}")
 
         state_key = (street, tuple(sorted(my_cards)), tuple(board_cards))
         strategy = self.get_strategy(state_key, legal_actions)
 
         for action in legal_actions:
             if action == CallAction:
-                regret = equity - (pot_size / (pot_size + BIG_BLIND))  # Pot odds comparison
+                regret = effective_equity - (pot_size / (pot_size + BIG_BLIND))
             elif action == RaiseAction:
-                regret = equity - 0.6  # Encourage raising if equity is high (threshold = 0.6)
+                regret = effective_equity - 0.6
             else:
-                regret = -equity  # Discourage folding with high equity
+                regret = -effective_equity
 
             self.update_regret_sum(state_key, action, regret)
 
@@ -131,10 +150,13 @@ class CFRBot(Bot):
         chosen_action = random.choices(list(legal_strategy.keys()), weights=legal_strategy.values(), k=1)[0]
         debug_log(f"Chosen action: {chosen_action}")
 
+        if chosen_action not in legal_actions:
+            debug_log(f"Chosen action {chosen_action} not legal, defaulting to FoldAction.")
+            return FoldAction()
+
         if isinstance(chosen_action, RaiseAction):
             min_raise, max_raise = round_state.raise_bounds()
-            raise_amount = min_raise + (max_raise - min_raise) // 2
-            debug_log(f"Raise amount: {raise_amount}")
+            raise_amount = self.dynamic_raise_amount(effective_equity, pot_size, min_raise, max_raise)
             return RaiseAction(raise_amount)
         if isinstance(chosen_action, CallAction):
             return CallAction()
@@ -143,11 +165,13 @@ class CFRBot(Bot):
         if isinstance(chosen_action, FoldAction):
             return FoldAction()
 
-        debug_log("Defaulting to CheckAction.")
-        return CheckAction()
+        debug_log("Defaulting to FoldAction.")
+        return FoldAction()
 
     def handle_new_round(self, game_state, round_state, active):
         debug_log("New round started.")
+        self.bounty = round_state.bounties[active]
+        debug_log(f"Bounty for this round: {self.bounty}")
 
     def handle_round_over(self, game_state: GameState, terminal_state: TerminalState, active: int):
         self.save_cfr_data()
