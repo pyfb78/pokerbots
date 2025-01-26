@@ -551,7 +551,7 @@ class Game():
         print('Starting the Pokerbots engine...')
         players = [
             Player("Mando", "mandobot"),
-            Player("Pavan", "latest_bot")
+            Player("Pavan", "cfr_bot")
         ]
         bounties = [-1, -1]
         for player in players:
