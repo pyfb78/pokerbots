@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/Users/pavan/Desktop/MIT/Freshman/IAP/pokerbots/latest_bot/player.py", line 104, in <module>
+    run_bot(Player(), parse_args())
+  File "/Users/pavan/Desktop/MIT/Freshman/IAP/pokerbots/latest_bot/skeleton/runner.py", line 142, in run_bot
+    runner.run()
+  File "/Users/pavan/Desktop/MIT/Freshman/IAP/pokerbots/latest_bot/skeleton/runner.py", line 73, in run
+    self.pokerbot.handle_new_round(game_state, round_state, active)
+  File "/Users/pavan/Desktop/MIT/Freshman/IAP/pokerbots/latest_bot/skeleton/bot.py", line 23, in handle_new_round
+    raise NotImplementedError('handle_new_round')
+NotImplementedError: handle_new_round

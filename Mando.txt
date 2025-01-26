@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "/Users/pavan/Desktop/MIT/Freshman/IAP/pokerbots/mandobot/player.py", line 193, in <module>
+    run_bot(Player(), parse_args())
+  File "/Users/pavan/Desktop/MIT/Freshman/IAP/pokerbots/mandobot/skeleton/runner.py", line 142, in run_bot
+    runner.run()
+  File "/Users/pavan/Desktop/MIT/Freshman/IAP/pokerbots/mandobot/skeleton/runner.py", line 117, in run
+    action = self.pokerbot.get_action(game_state, round_state, active)
+  File "/Users/pavan/Desktop/MIT/Freshman/IAP/pokerbots/mandobot/player.py", line 124, in get_action
+    has_bounty_in_hand = any(card.rank == my_bounty for card in my_cards)
+  File "/Users/pavan/Desktop/MIT/Freshman/IAP/pokerbots/mandobot/player.py", line 124, in <genexpr>
+    has_bounty_in_hand = any(card.rank == my_bounty for card in my_cards)
+AttributeError: 'str' object has no attribute 'rank'
