@@ -25,9 +25,10 @@ def debug_log(message):
 class CFRBot(Bot):
     def __init__(self):
         self.opponent_tendencies = {
-            'aggression': 0,
-            'passivity': 0,
-            'bluffing': 0
+            'aggression_frequency': 0.0,  # Ratio of raises to total actions
+            'bluff_count': 0,             # Number of suspected bluffs
+            'total_actions': 0,           # Total actions observed
+            'raise_count': 0              # Total raises observed
         }
         self.regret_sum = {}
         self.strategy_sum = {}
@@ -55,11 +56,26 @@ class CFRBot(Bot):
         debug_log("CFR data saved successfully.")
 
     def track_opponent_behavior(self, round_state, active):
-        opp_contribution = STARTING_STACK - round_state.stacks[1 - active]
+        opp_pip = round_state.pips[1 - active]
+        opp_stack = round_state.stacks[1 - active]
+        opp_contribution = STARTING_STACK - opp_stack
+
+        # Increment total actions
+        self.opponent_tendencies['total_actions'] += 1
+
+        # Identify aggression
         if opp_contribution > BIG_BLIND * 2:
-            self.opponent_tendencies['aggression'] += 1
-        elif opp_contribution == 0:
-            self.opponent_tendencies['passivity'] += 1
+            self.opponent_tendencies['raise_count'] += 1
+
+        # Calculate aggression frequency
+        self.opponent_tendencies['aggression_frequency'] = (
+            self.opponent_tendencies['raise_count'] / self.opponent_tendencies['total_actions']
+        )
+
+        # Detect potential bluffing (simplistic heuristic: raising with low equity)
+        if opp_pip > 0 and random.random() < 0.2:
+            self.opponent_tendencies['bluff_count'] += 1
+
         debug_log(f"Opponent tendencies updated: {self.opponent_tendencies}")
 
     def calculate_equity(self, board_cards, my_cards):
@@ -98,6 +114,28 @@ class CFRBot(Bot):
             self.strategy_sum[state_key][action] += strategy[action]
 
         debug_log(f"Strategy for state {state_key}: {strategy}")
+        return strategy
+
+    def adjust_strategy_based_on_tendencies(self, strategy):
+        """Adjust strategy dynamically based on opponent tendencies."""
+        aggression_frequency = self.opponent_tendencies['aggression_frequency']
+        bluff_count = self.opponent_tendencies['bluff_count']
+
+        # Adjust strategy against aggressive opponents
+        if aggression_frequency > 0.6:
+            strategy[CallAction] = strategy.get(CallAction, 0) + 0.2
+            strategy[RaiseAction] = strategy.get(RaiseAction, 0) - 0.2
+        
+        # Adjust strategy against bluff-heavy opponents
+        if bluff_count > 5:
+            strategy[CallAction] = strategy.get(CallAction, 0) + 0.3
+
+        # Normalize strategy
+        total_weight = sum(strategy.values())
+        if total_weight > 0:
+            strategy = {action: weight / total_weight for action, weight in strategy.items()}
+
+        debug_log(f"Adjusted strategy based on tendencies: {strategy}")
         return strategy
 
     def update_regret_sum(self, state_key, action, regret):
@@ -139,13 +177,7 @@ class CFRBot(Bot):
             self.update_regret_sum(state_key, action, regret)
 
         legal_strategy = {action: strategy[action] for action in legal_actions if action in strategy}
-        total_weight = sum(legal_strategy.values())
-        if total_weight > 0:
-            legal_strategy = {action: weight / total_weight for action, weight in legal_strategy.items()}
-        else:
-            legal_strategy = {action: 1 / len(legal_actions) for action in legal_actions}
-
-        debug_log(f"Legal strategy: {legal_strategy}")
+        legal_strategy = self.adjust_strategy_based_on_tendencies(legal_strategy)
 
         chosen_action = random.choices(list(legal_strategy.keys()), weights=legal_strategy.values(), k=1)[0]
         debug_log(f"Chosen action: {chosen_action}")
