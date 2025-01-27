@@ -1,155 +1,145 @@
+import pandas as pd
+import random
+import holdem_calc
 from skeleton.actions import FoldAction, CallAction, CheckAction, RaiseAction
 from skeleton.states import GameState, TerminalState, RoundState
 from skeleton.states import NUM_ROUNDS, STARTING_STACK, BIG_BLIND, SMALL_BLIND
 from skeleton.bot import Bot
 from skeleton.runner import parse_args, run_bot
+import os
+import eval7
 
-import random
-import pickle
-import holdem_calc
+SAVE_FILE = "cfr_data.csv"
+DEBUG_MODE = True
 
 RANK_TO_VALUE = {
     '2': 2,  '3': 3,  '4': 4,  '5': 5,  '6': 6,
     '7': 7,  '8': 8,  '9': 9,  'T': 10, 'J': 11,
     'Q': 12, 'K': 13, 'A': 14
 }
+def get_action_from_string(chosen_action):
 
-SAVE_FILE = "cfr_data.pkl"
+    # Extract class name from the string
 
-DEBUG_MODE = True  # Toggle debug logging
+    if chosen_action.startswith("<class '") and chosen_action.endswith("'>"):
+
+        class_path = chosen_action[len("<class '"):-len("'>")]  # Remove <class ''> wrapper
+
+        class_name = class_path.split('.')[-1]  # Extract class name (e.g., 'CallAction')
+
+
+
+        # Map class names to actual classes
+
+        action_map = {
+
+            "FoldAction": FoldAction,
+
+            "CallAction": CallAction,
+
+            "CheckAction": CheckAction,
+
+            "RaiseAction": RaiseAction
+
+        }
+
+
+
+        # Return the corresponding class if it exists
+
+        return action_map.get(class_name, None)
+
+    return None  # Return None if string is not a valid class representation
+
+def is_valid_action_instance(chosen_action_str, obj):
+
+    action_class = get_action_from_string(chosen_action_str)  # Get the action class from the string
+
+    if action_class:
+
+        return isinstance(obj, action_class)  # Check if the object is an instance of the action class
+
+    return False
 
 def debug_log(message):
     if DEBUG_MODE:
         print(message)
 
-class CFRBot(Bot):
+class Player(Bot):
     def __init__(self):
         self.opponent_tendencies = {
-            'aggression_frequency': 0.0,  # Ratio of raises to total actions
-            'bluff_count': 0,             # Number of suspected bluffs
-            'total_actions': 0,           # Total actions observed
-            'raise_count': 0              # Total raises observed
+            'aggression_frequency': 0.0,
+            'bluff_count': 0,
+            'total_actions': 0,
+            'raise_count': 0
         }
         self.regret_sum = {}
         self.strategy_sum = {}
-        self.strategy_iteration = 0  # Track iterations for strategy adjustments
-        self.bounty = None  # Initialize bounty rank
+        self.strategy_iteration = 0
+        self.bounty = None
         self.load_cfr_data()
 
     def load_cfr_data(self):
         try:
-            with open(SAVE_FILE, "rb") as f:
-                data = pickle.load(f)
-                self.regret_sum = data.get("regret_sum", {})
-                self.strategy_sum = data.get("strategy_sum", {})
-                debug_log("CFR data loaded successfully.")
+            if not os.path.exists(SAVE_FILE) or os.path.getsize(SAVE_FILE) == 0:
+                debug_log("No previous CFR data found. Starting fresh.")
+                return
+
+            df = pd.read_csv(SAVE_FILE)
+            for _, row in df.iterrows():
+                state_key = tuple(row['state_key'].split('|'))
+                action = row['action']
+                regret = row['regret']
+                strategy = row['strategy']
+                if state_key not in self.regret_sum:
+                    self.regret_sum[state_key] = {}
+                if state_key not in self.strategy_sum:
+                    self.strategy_sum[state_key] = {}
+                self.regret_sum[state_key][action] = regret
+                self.strategy_sum[state_key][action] = strategy
+            debug_log("CFR data loaded successfully.")
         except FileNotFoundError:
             debug_log("No previous CFR data found. Starting fresh.")
+        except pd.errors.EmptyDataError:
+            debug_log("CFR data file is empty. Starting fresh.")
 
     def save_cfr_data(self):
-        data = {
-            "regret_sum": self.regret_sum,
-            "strategy_sum": self.strategy_sum
-        }
-        with open(SAVE_FILE, "wb") as f:
-            pickle.dump(data, f)
+        rows = []
+        for state_key, actions in self.regret_sum.items():
+            for action, regret in actions.items():
+                strategy = self.strategy_sum[state_key].get(action, 0)
+                rows.append({
+                    'state_key': '|'.join(map(str, state_key)),  # Convert all elements to strings
+                    'action': action,
+                    'regret': regret,
+                    'strategy': strategy
+                })
+        df = pd.DataFrame(rows)
+        df.to_csv(SAVE_FILE, index=False)
         debug_log("CFR data saved successfully.")
 
-    def track_opponent_behavior(self, round_state, active):
-        opp_pip = round_state.pips[1 - active]
-        opp_stack = round_state.stacks[1 - active]
-        opp_contribution = STARTING_STACK - opp_stack
-
-        # Increment total actions
-        self.opponent_tendencies['total_actions'] += 1
-
-        # Identify aggression
-        if opp_contribution > BIG_BLIND * 2:
-            self.opponent_tendencies['raise_count'] += 1
-
-        # Calculate aggression frequency
-        self.opponent_tendencies['aggression_frequency'] = (
-            self.opponent_tendencies['raise_count'] / self.opponent_tendencies['total_actions']
-        )
-
-        # Detect potential bluffing (simplistic heuristic: raising with low equity or frequent betting)
-        if opp_pip > 0 and random.random() < 0.2:
-            self.opponent_tendencies['bluff_count'] += 1
-
-        debug_log(f"Opponent tendencies updated: {self.opponent_tendencies}")
-
-    def calculate_equity(self, board_cards, my_cards):
-        """Calculate hand equity using the holdem_calc module."""
-        if board_cards:
-            equity = holdem_calc.calculate(
-                list(board_cards), False, 10000, None, [my_cards[0], my_cards[1], "?", "?"], False
-            )
-            debug_log(f"Equity calculated: {equity:.4f}")
-            return equity
-        # Pre-flop equity adjustment based on hole card strength
-        high_card_rank = max(RANK_TO_VALUE[my_cards[0][0]], RANK_TO_VALUE[my_cards[1][0]])
-        return 0.7 if high_card_rank >= 11 else 0.5
-
-    def calculate_bounty_multiplier(self, my_cards, board_cards):
-        """Check if the bounty rank is in the hole cards or on the board."""
-        combined = my_cards + board_cards
-        bounty_hit = any(card[0] == self.bounty for card in combined)
-        return 1.5 if bounty_hit else 1.0
-
-    def dynamic_raise_amount(self, equity, pot_size, min_raise, max_raise):
-        """Calculate a dynamic raise amount based on equity, tendencies, and pot size."""
-        aggression_frequency = self.opponent_tendencies['aggression_frequency']
-        bluff_count = self.opponent_tendencies['bluff_count']
-
-        # Scale raise aggression dynamically
-        base_aggression = equity * 2  # Higher equity leads to more aggressive raises
-
-        if aggression_frequency > 0.6:
-            base_aggression *= 0.8  # Be cautious against aggressive opponents
-
-        if bluff_count > 5:
-            base_aggression *= 1.2  # Exploit bluff-heavy opponents
-
-        raise_amount = pot_size * min(1.5, base_aggression)
-        raise_amount = max(min_raise, min(raise_amount, max_raise))
-        debug_log(f"Dynamic raise amount calculated with tendencies: {raise_amount}")
-        return raise_amount
-
     def get_strategy(self, state_key, legal_actions):
-        regrets = self.regret_sum.get(state_key, {a: 0 for a in legal_actions})
+        # Ensure that all legal_actions have an entry in regrets, even if not present
+        regrets = self.regret_sum.get(state_key, {action: 0 for action in legal_actions})
+        for action in legal_actions:
+            if action not in regrets:
+                regrets[action] = 0  # Initialize missing actions
+
+        # Ensure that all actions have an entry in strategy_sum
+        if state_key not in self.strategy_sum:
+            self.strategy_sum[state_key] = {}
+        for action in legal_actions:
+            if action not in self.strategy_sum[state_key]:
+                self.strategy_sum[state_key][action] = 0  # Initialize missing actions
+
         normalizing_sum = sum(max(r, 0) for r in regrets.values())
         strategy = {a: max(regrets[a], 0) / normalizing_sum if normalizing_sum > 0 else 1 / len(legal_actions) for a in legal_actions}
 
-        if state_key not in self.strategy_sum:
-            self.strategy_sum[state_key] = {a: 0 for a in legal_actions}
+        # Update the strategy_sum with the calculated strategy
         for action in legal_actions:
             self.strategy_sum[state_key][action] += strategy[action]
 
         debug_log(f"Strategy for state {state_key}: {strategy}")
-        return strategy
-
-    def adjust_strategy_based_on_tendencies(self, strategy):
-        """Adjust strategy dynamically based on opponent tendencies."""
-        aggression_frequency = self.opponent_tendencies['aggression_frequency']
-        bluff_count = self.opponent_tendencies['bluff_count']
-
-        # Adjust strategy against aggressive opponents
-        if aggression_frequency > 0.6:
-            strategy[CallAction] = strategy.get(CallAction, 0) + 0.3
-            strategy[RaiseAction] = strategy.get(RaiseAction, 0) - 0.2
-            strategy[FoldAction] = strategy.get(FoldAction, 0) - 0.1
-
-        # Adjust strategy against bluff-heavy opponents
-        if bluff_count > 5:
-            strategy[CallAction] = strategy.get(CallAction, 0) + 0.4
-            strategy[RaiseAction] = strategy.get(RaiseAction, 0) + 0.2
-
-        # Normalize strategy
-        total_weight = sum(max(weight, 0) for weight in strategy.values())
-        if total_weight > 0:
-            strategy = {action: max(weight, 0) / total_weight for action, weight in strategy.items()}
-
-        debug_log(f"Adjusted strategy based on tendencies: {strategy}")
         return strategy
 
     def update_regret_sum(self, state_key, action, regret):
@@ -160,7 +150,118 @@ class CFRBot(Bot):
         self.regret_sum[state_key][action] += regret
         debug_log(f"Regret updated for {action}: {regret}. Total: {self.regret_sum[state_key][action]}")
 
+    def track_opponent_behavior(self, round_state, active):
+        opp_pip = round_state.pips[1 - active]
+        opp_stack = round_state.stacks[1 - active]
+        opp_contribution = STARTING_STACK - opp_stack
+
+        self.opponent_tendencies['total_actions'] += 1
+
+        if opp_contribution > BIG_BLIND * 2:
+            self.opponent_tendencies['raise_count'] += 1
+
+        self.opponent_tendencies['aggression_frequency'] = (
+            self.opponent_tendencies['raise_count'] / self.opponent_tendencies['total_actions']
+        )
+
+        if opp_pip > 0 and random.random() < 0.2:
+            self.opponent_tendencies['bluff_count'] += 1
+
+        debug_log(f"Opponent tendencies updated: {self.opponent_tendencies}")
+
+    # def calculate_equity(self, board_cards, my_cards):
+    #     if len(board_cards) > 0:
+    #         debug_log(board_cards)
+    #         _, equity, _ = holdem_calc.calculate(
+    #             list(board_cards), False, 5000, None, [my_cards[0], my_cards[1], "?", "?"], False
+    #         )
+    #         debug_log(f"Equity calculated: {equity:.4f}")
+           
+    #         return equity
+
+    #     high_card_rank = max(RANK_TO_VALUE[my_cards[0][0]], RANK_TO_VALUE[my_cards[1][0]])
+    #     return 0.7 if high_card_rank >= 11 else 0.5
+    
+    def calculate_equity(self, board_cards, my_cards, iterations=1000):
+        """
+        Calculate the equity of a known hand (hand1) against a random opponent hand,
+        with optional known community cards (board). Accepts card strings as input.
+
+        Args:
+            hand1 (list): A list of 2 card strings (e.g., ["As", "Ks"]) representing the known hand.
+            known_board (list): A list of card strings (e.g., ["2h", "7d", "5s"]) representing known community cards.
+                                Pass an empty list or None if there are no known cards.
+            iterations (int): Number of Monte Carlo iterations.
+
+        Returns:
+            float: Equity percentage for hand1.
+        """
+        # Convert string inputs to eval7.Card objects
+        hand1 = [eval7.Card(card) for card in my_cards]
+        if board_cards:
+            known_board = [eval7.Card(card) for card in board_cards]
+        else:
+            known_board = []
+
+        wins = 0  # Number of wins for hand1
+        ties = 0  # Number of ties
+        total = 0  # Total simulations
+
+        # Create a deck and remove known cards (hand1 and known_board)
+        deck = eval7.Deck()
+        for card in hand1:
+            deck.cards.remove(card)  # Remove hand1 cards from the deck
+        for card in known_board:
+            deck.cards.remove(card)  # Remove known board cards from the deck
+
+        for _ in range(iterations):
+            deck.shuffle()  # Shuffle the deck
+
+            # Randomly select a two-card opponent hand
+            opp_hand = deck.peek(2)
+
+            # Determine the number of remaining community cards to deal
+            remaining_board_count = 5 - len(known_board)
+
+            # Deal the remaining community cards
+            remaining_board = deck.peek(remaining_board_count)  # Peek after opponent's hand
+
+            # Combine the known and remaining community cards
+            board = known_board + remaining_board
+
+            # Evaluate both hands
+            score1 = eval7.evaluate(hand1 + board)
+            score2 = eval7.evaluate(opp_hand + board)
+
+            if score1 > score2:
+                wins += 1
+            elif score1 == score2:
+                ties += 1
+
+            total += 1
+
+        equity = (wins + ties / 2) / total
+        return equity
+
+    def dynamic_raise_amount(self, equity, pot_size, min_raise, max_raise):
+        aggression_frequency = self.opponent_tendencies['aggression_frequency']
+        bluff_count = self.opponent_tendencies['bluff_count']
+
+        base_aggression = equity * 2
+
+        if aggression_frequency > 0.6:
+            base_aggression *= 0.8
+
+        if bluff_count > 5:
+            base_aggression *= 1.2
+
+        raise_amount = pot_size * min(1.5, base_aggression)
+        raise_amount = max(min_raise, min(raise_amount, max_raise))
+        debug_log(f"Dynamic raise amount calculated with tendencies: {raise_amount}")
+        return raise_amount
+
     def get_action(self, game_state, round_state, active):
+        # return FoldAction()
         legal_actions = round_state.legal_actions()
         street = round_state.street
         my_cards = round_state.hands[active]
@@ -172,47 +273,51 @@ class CFRBot(Bot):
         self.track_opponent_behavior(round_state, active)
 
         equity = self.calculate_equity(board_cards, my_cards)
-        bounty_multiplier = self.calculate_bounty_multiplier(my_cards, board_cards)
-        effective_equity = equity * bounty_multiplier
-
-        debug_log(f"Effective equity (considering bounty): {effective_equity:.4f}")
 
         state_key = (street, tuple(sorted(my_cards)), tuple(board_cards))
         strategy = self.get_strategy(state_key, legal_actions)
 
         for action in legal_actions:
             if action == CallAction:
-                regret = effective_equity - (pot_size / (pot_size + BIG_BLIND))
+                regret = equity - (pot_size / (pot_size + BIG_BLIND))
             elif action == RaiseAction:
-                regret = effective_equity - 0.6
+                regret = equity - 0.6
             else:
-                regret = -effective_equity
-
+                regret = -equity
             self.update_regret_sum(state_key, action, regret)
 
         legal_strategy = {action: strategy[action] for action in legal_actions if action in strategy}
-        legal_strategy = self.adjust_strategy_based_on_tendencies(legal_strategy)
+        debug_log(f"Legal strategy: {legal_strategy}")
 
+        if not legal_strategy or sum(legal_strategy.values()) == 0:
+            debug_log("No valid strategy available. Defaulting to FoldAction.")
+            return FoldAction()
+        # return FoldAction()
         chosen_action = random.choices(list(legal_strategy.keys()), weights=legal_strategy.values(), k=1)[0]
-        debug_log(f"Chosen action: {chosen_action}")
-
-        if chosen_action not in legal_actions:
-            debug_log(f"Chosen action {chosen_action} not legal, defaulting to FoldAction.")
-            return FoldAction()
-
-        if isinstance(chosen_action, RaiseAction):
+        # debug_log(f"Chosen action: {chosen_action}")
+        debug_log(f'checking type {str(chosen_action)}')
+   
+        r = RaiseAction(5)
+        check = CheckAction()
+        call = CallAction()
+        fold = FoldAction()
+        # return CheckAction() 
+        if(is_valid_action_instance(str(chosen_action), r)):
             min_raise, max_raise = round_state.raise_bounds()
-            raise_amount = self.dynamic_raise_amount(effective_equity, pot_size, min_raise, max_raise)
-            return RaiseAction(raise_amount)
-        if isinstance(chosen_action, CallAction):
-            return CallAction()
-        if isinstance(chosen_action, CheckAction):
+            raise_amount = self.dynamic_raise_amount(equity, pot_size, min_raise, max_raise)
+            debug_log(f"sent answer: {RaiseAction(raise_amount)}")
+            return RaiseAction(int(raise_amount))
+        # return FoldAction() 
+        if(is_valid_action_instance(str(chosen_action), check)):
+            debug_log(f"sent answer: {CheckAction()}")
             return CheckAction()
-        if isinstance(chosen_action, FoldAction):
+        # return CheckAction()
+        if(is_valid_action_instance(str(chosen_action), fold)):
+            debug_log(f"sent answer: {FoldAction()}")
             return FoldAction()
 
-        debug_log("Defaulting to FoldAction.")
-        return FoldAction()
+        debug_log("Defaulting to CallAction.")
+        return CallAction()
 
     def handle_new_round(self, game_state, round_state, active):
         debug_log("New round started.")
@@ -228,10 +333,5 @@ class CFRBot(Bot):
         debug_log("Game ended. Final data saved.")
 
 if __name__ == '__main__':
-    bot = CFRBot()
-    try:
-        run_bot(bot, parse_args())
-    finally:
-        bot.save_on_game_end()
-        debug_log("Bot execution finished.")
+    run_bot(Player(), parse_args())
 

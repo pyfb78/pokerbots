@@ -11,13 +11,13 @@ def run_program_thousand_times(program_path, delay=0.0):
         program_path (str): Path to the program or script to execute.
         delay (float): Optional delay (in seconds) between executions.
     """
-    iterations = 1001 
+    iterations = 5001 
     with alive_bar(iterations) as bar:
         for i in range(1, iterations):
             try:
                 # print(f"Running iteration {i}...")
-                result = subprocess.run(["python", 'engine_new.py'], capture_output=True, text=True)
-                result = subprocess.run(["python", 'engine_best.py'], capture_output=True, text=True)
+                # result = subprocess.run(["python", 'engine_new.py'], capture_output=True, text=True)
+                result = subprocess.run(["python", 'engine.py'], capture_output=True, text=True)
                 # print(f"Iteration {i} completed. Output:\n{result.stdout}")
                 if result.stderr:
                     print(f"Errors in iteration {i}:\n{result.stderr}")
@@ -30,7 +30,7 @@ def run_program_thousand_times(program_path, delay=0.0):
 
 if __name__ == "__main__":
     # Provide the path to the program you want to run
-    program_to_run = "engine_new.py"  # Replace with the actual program file
+    program_to_run = "engine.py"  # Replace with the actual program file
     # delay_between_runs = 0.1  # Optional: add a small delay (e.g., 0.1 seconds)
     
     run_program_thousand_times(program_to_run)
