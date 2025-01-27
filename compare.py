@@ -4,12 +4,14 @@ from alive_progress import alive_bar
 import subprocess
 import time
 import re
+import json
 
 
 def run_program_thousand_times(program_path, delay=0.0):
     new = 0
     best = 0
-
+    wins = {'new':0, 'best':0}
+    scores = {'new':[], 'best':[]}
     """
     Runs a program 1000 times.
     
@@ -17,7 +19,7 @@ def run_program_thousand_times(program_path, delay=0.0):
         program_path (str): Path to the program or script to execute.
         delay (float): Optional delay (in seconds) between executions.
     """
-    iterations = 1001 
+    iterations = 25 
     with alive_bar(iterations) as bar:
         for i in range(1, iterations):
             try:
@@ -42,21 +44,30 @@ def run_program_thousand_times(program_path, delay=0.0):
 
             # print(last_line) 
             match = list(re.findall(r'\(([^()]*)\)', last_line))
+            if(int(match[0]) > int(match[1])):
+                wins['new'] += 1
+            elif(int(match[0]) < int(match[1])):
+                wins['best'] += 1
             new += int(match[0])
             best += int(match[1])
+            scores['new'].append(int(match[0]))
+            scores['best'].append(int(match[1]))
             # print(new, best)
             # print(match)
             bar()
-    return new, best
+    return new, best,scores,wins
 
 if __name__ == "__main__":
     # Provide the path to the program you want to run
     program_to_run = "engine_new.py"  # Replace with the actual program file
     # delay_between_runs = 0.1  # Optional: add a small delay (e.g., 0.1 seconds)
-    scores = {'new':[],'best':[]}
+    score = {'new':[],'best':[]}
     for i in range(1):
-        n,b = run_program_thousand_times(program_to_run)
-        scores['new'].append(n)
-        scores['best'].append(b)
+        new,best,scores,wins = run_program_thousand_times(program_to_run)
+        # score['new'].append(new)
+        # score['best'].append(best)
+        print(json.dumps(scores,indent=4))
+        print(json.dumps(wins,indent=4))
+        print(new,best)
 
-    print(scores)
+    # print(scores)
