@@ -18,37 +18,19 @@ RANK_TO_VALUE = {
     'Q': 12, 'K': 13, 'A': 14
 }
 def get_action_from_string(chosen_action):
-
     # Extract class name from the string
-
     if chosen_action.startswith("<class '") and chosen_action.endswith("'>"):
-
         class_path = chosen_action[len("<class '"):-len("'>")]  # Remove <class ''> wrapper
-
         class_name = class_path.split('.')[-1]  # Extract class name (e.g., 'CallAction')
-
-
-
         # Map class names to actual classes
-
         action_map = {
-
             "FoldAction": FoldAction,
-
             "CallAction": CallAction,
-
             "CheckAction": CheckAction,
-
             "RaiseAction": RaiseAction
-
         }
-
-
-
         # Return the corresponding class if it exists
-
         return action_map.get(class_name, None)
-
     return None  # Return None if string is not a valid class representation
 
 def is_valid_action_instance(chosen_action_str, obj):
@@ -327,11 +309,11 @@ class Player(Bot):
         debug_log(f"Bounty for this round: {self.bounty}")
 
     def handle_round_over(self, game_state: GameState, terminal_state: TerminalState, active: int):
-        self.save_cfr_data()
+        # self.save_cfr_data()
         debug_log("Round over. Data saved.")
 
     def save_on_game_end(self):
-        self.save_cfr_data()
+        # self.save_cfr_data()
         debug_log("Game ended. Final data saved.")
 
 if __name__ == '__main__':
