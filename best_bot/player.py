@@ -131,6 +131,8 @@ class Player(Bot):
         for action in legal_actions:
             if action not in self.strategy_sum[state_key]:
                 self.strategy_sum[state_key][action] = 0  # Initialize missing actions
+        if RaiseAction in regrets:
+            regrets[RaiseAction] += 0.2  # Increase raise tendency
 
         normalizing_sum = sum(max(r, 0) for r in regrets.values())
         strategy = {a: max(regrets[a], 0) / normalizing_sum if normalizing_sum > 0 else 1 / len(legal_actions) for a in legal_actions}
@@ -247,15 +249,15 @@ class Player(Bot):
         aggression_frequency = self.opponent_tendencies['aggression_frequency']
         bluff_count = self.opponent_tendencies['bluff_count']
 
-        base_aggression = equity * 2
+        base_aggression = equity * 5
 
         if aggression_frequency > 0.6:
             base_aggression *= 0.8
 
-        if bluff_count > 5:
-            base_aggression *= 1.2
+        if bluff_count > 20:
+            base_aggression *= 2
 
-        raise_amount = pot_size * min(1.5, base_aggression)
+        raise_amount = pot_size * min(3.5, base_aggression)
         raise_amount = max(min_raise, min(raise_amount, max_raise))
         debug_log(f"Dynamic raise amount calculated with tendencies: {raise_amount}")
         return raise_amount
